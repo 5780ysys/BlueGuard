@@ -1,0 +1,1916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>蓝盾 BlueGuard · 终端防护引擎</title>
+<link rel="icon" type="image/png" href="/static/icon.png" />
+<link rel="apple-touch-icon" href="/static/icon.png" />
+<meta name="theme-color" content="#16377d" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'nonce-bg2026'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
+<style>
+:root{
+  --bg:#eef2f7; --bg-grad:linear-gradient(160deg,#edf1f7 0%,#e7edf5 100%);
+  --panel:#ffffff; --panel-2:#f8fafc; --line:#e5eaf1; --line-2:#eef2f7;
+  --text:#0f172a; --text-2:#475569; --muted:#8b95a7;
+  --primary:#2f6bff; --primary-d:#1e51d6; --primary-g:linear-gradient(135deg,#3b7bff,#2f6bff 55%,#4a5cff);
+  --ok:#16a085; --warn:#e6a23c; --danger:#e5484d; --crit:#d22f3a;
+  --radius:13px; --radius-s:9px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04),0 2px 6px rgba(15,23,42,.05);
+  --shadow-md:0 4px 10px rgba(15,23,42,.05),0 10px 28px rgba(15,23,42,.07);
+  --shadow-lg:0 12px 32px rgba(15,23,42,.14),0 30px 60px rgba(15,23,42,.16);
+  --side-bg:linear-gradient(180deg,#101c3c 0%,#0e2a63 60%,#16377d 100%);
+  --side-line:rgba(255,255,255,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased}
+body{font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+  background:var(--bg-grad);background-attachment:fixed;color:var(--text);font-size:14px;line-height:1.95}
+button{font-family:inherit;cursor:pointer;border:none;background:none;font-size:14px;transition:all .15s ease}
+input,select,textarea{font-family:inherit;font-size:14px;padding:8px 11px;border:1px solid var(--line);
+  border-radius:var(--radius-s);background:#fff;color:var(--text);transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);
+  box-shadow:0 0 0 3px rgba(47,107,255,.13)}
+input::placeholder,textarea::placeholder{color:#b3bcc9}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;line-height:18px;font-weight:600;letter-spacing:.2px}
+.b-ok{background:#e3f6ef;color:#0e7a5f;border:1px solid #c2ecdd}
+.b-warn{background:#fdf3e0;color:#b07616;border:1px solid #f6e0b8}
+.b-danger{background:#fdeaea;color:#c23b40;border:1px solid #f6cdcd}
+.b-info{background:#e8f0ff;color:#2456c9;border:1px solid #ceddff}
+.b-gray{background:#f1f3f7;color:#55617a;border:1px solid #e3e7ef}
+.b-crit{background:linear-gradient(135deg,#e5484d,#d22f3a);color:#fff;border:none}
+
+/* 滚动条 */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#c3ccda;border-radius:20px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#aab5c8;border:2px solid transparent;background-clip:content-box}
+
+/* 启动遮罩（打开即进入，免登录） */
+#splash{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(1200px 700px at 20% 10%,#16337c 0%,#0e2a63 45%,#0b1c42 100%);
+  overflow:hidden;transition:opacity .45s ease,visibility .45s ease}
+#splash::before{content:"";position:absolute;width:560px;height:560px;left:-140px;top:-150px;
+  background:radial-gradient(circle,rgba(59,123,255,.34),transparent 65%);filter:blur(10px)}
+#splash::after{content:"";position:absolute;width:460px;height:460px;right:-120px;bottom:-140px;
+  background:radial-gradient(circle,rgba(64,92,255,.26),transparent 65%);filter:blur(10px)}
+#splash.gone{opacity:0;visibility:hidden}
+.splash-inner{position:relative;text-align:center;z-index:2}
+.splash-mark{font-size:56px;line-height:1;animation:breathe 2.4s ease-in-out infinite;
+  filter:drop-shadow(0 10px 28px rgba(80,140,255,.5))}
+.splash-name{font-size:25px;font-weight:800;letter-spacing:2.4px;color:#fff;margin-top:14px}
+.splash-sub{font-size:12px;color:#9db4e0;letter-spacing:3.2px;margin-top:9px}
+.splash-bar{width:196px;height:3px;border-radius:3px;background:rgba(255,255,255,.14);
+  margin:26px auto 0;overflow:hidden}
+.splash-bar i{display:block;height:100%;width:42%;border-radius:3px;
+  background:linear-gradient(90deg,#4a8cff,#9cc0ff);animation:slideBar 1.15s ease-in-out infinite}
+.splash-tip{font-size:12px;color:#8ea2cf;margin-top:14px;letter-spacing:.4px}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
+@keyframes slideBar{0%{transform:translateX(-130%)}100%{transform:translateX(330%)}}
+
+/* 登录（仅 password 模式兜底，默认不出现） */
+#login{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:100;
+  background:radial-gradient(1200px 700px at 20% 10%,#16337c 0%,#0e2a63 45%,#0b1c42 100%);overflow:hidden}
+#login.show{display:flex}
+#login::before{content:"";position:absolute;width:520px;height:520px;left:-120px;top:-120px;
+  background:radial-gradient(circle,rgba(59,123,255,.35),transparent 65%);filter:blur(8px)}
+#login::after{content:"";position:absolute;width:420px;height:420px;right:-100px;bottom:-120px;
+  background:radial-gradient(circle,rgba(64,92,255,.28),transparent 65%);filter:blur(8px)}
+.login-card{position:relative;background:rgba(255,255,255,.98);padding:38px 34px;border-radius:18px;
+  width:372px;box-shadow:0 24px 70px rgba(0,0,0,.4);backdrop-filter:blur(4px);
+  animation:cardIn .4s cubic-bezier(.2,.8,.3,1)}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+.login-card h1{font-size:23px;margin-bottom:10px;letter-spacing:.3px;
+  background:linear-gradient(135deg,#2456c9,#4a5cff);-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent}
+.login-card p{color:var(--text-2);font-size:13px;margin-bottom:24px}
+.login-card input{width:100%;margin-bottom:22px;padding:11px 13px;border-radius:10px;background:#f6f8fc}
+.login-card input:focus{background:#fff}
+.login-card button{width:100%;padding:14px;background:var(--primary-g);color:#fff;border-radius:10px;line-height:1.8;
+  font-weight:700;letter-spacing:2px;font-size:15px;box-shadow:0 6px 16px rgba(47,107,255,.35)}
+.login-card button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(47,107,255,.45)}
+.login-card button:active{transform:translateY(0)}
+.login-err{color:var(--danger);font-size:13px;margin-bottom:10px;min-height:18px}
+
+/* 布局 */
+#app{display:none;min-height:100vh}
+.side{position:fixed;left:0;top:0;bottom:0;width:216px;background:var(--side-bg);color:#c9d4ec;
+  padding:18px 0;overflow-y:auto;border-right:1px solid var(--side-line);z-index:30;
+  box-shadow:2px 0 18px rgba(13,27,62,.18)}
+.brand{padding:4px 20px 18px;font-size:16px;font-weight:700;color:#fff;border-bottom:1px solid var(--side-line);margin-bottom:12px;letter-spacing:.4px}
+.brand small{display:block;font-size:11px;color:#8ea2cf;font-weight:400;margin-top:3px;letter-spacing:.3px}
+.nav-item{padding:11px 20px;display:flex;align-items:center;gap:11px;font-size:13.5px;cursor:pointer;
+  border-left:3px solid transparent;color:#c9d4ec;position:relative;transition:all .16s ease}
+.nav-item::before{content:"";position:absolute;right:12px;width:5px;height:5px;border-radius:50%;
+  background:rgba(255,255,255,.18)}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.active{background:linear-gradient(90deg,rgba(64,132,255,.28),rgba(64,132,255,.04));color:#fff;
+  border-left-color:#6aa2ff;font-weight:600}
+.nav-item.active::before{background:#6aa2ff;box-shadow:0 0 6px #6aa2ff}
+.nav-item .ic{width:20px;text-align:center;opacity:.92;font-size:15px}
+.main{margin-left:216px;padding:0 0 48px}
+.topbar{background:rgba(255,255,255,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+  padding:14px 26px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:20}
+.topbar h2{font-size:18px;font-weight:700;color:var(--text)}
+.topbar h2::before{content:"";display:inline-block;width:4px;height:18px;border-radius:2px;
+  background:var(--primary-g);margin-right:10px;vertical-align:-3px}
+.topbar .right{display:flex;gap:12px;align-items:center;font-size:13px;color:var(--text-2)}
+.content{padding:26px 30px}
+.page{display:none}.page.active{display:block;animation:pageIn .3s ease}
+@keyframes pageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* 卡片/表格 */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:18px;margin-bottom:24px}
+.card{background:var(--panel);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm);
+  border:1px solid var(--line-2);position:relative;overflow:hidden;transition:transform .18s ease,box-shadow .18s ease;line-height:1.8}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.card::after{content:"";position:absolute;right:-24px;top:-24px;width:70px;height:70px;border-radius:50%;
+  background:radial-gradient(circle,rgba(47,107,255,.08),transparent 70%)}
+.card .k{font-size:13px;color:var(--text-2);margin-bottom:12px;font-weight:500;line-height:1.8}
+.card .v{font-size:27px;font-weight:800;line-height:1.1;letter-spacing:.5px}
+.card .v.danger{color:var(--crit)}.card .v.warn{color:#d99020}.card .v.ok{color:#14a07f}
+.panel{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow-sm);
+  border:1px solid var(--line-2);overflow:hidden;margin-bottom:20px}
+.panel-h{padding:18px 22px;border-bottom:1px solid var(--line-2);display:flex;justify-content:space-between;align-items:center;
+  background:linear-gradient(180deg,#fbfcfe,#f7f9fc);gap:12px;flex-wrap:wrap}
+.panel-h h3{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.panel-h h3::before{content:"";width:3px;height:15px;border-radius:2px;background:var(--primary-g)}
+.panel-b{padding:0}
+.panel-b.padded{padding:22px 24px;line-height:2}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+th{text-align:left;padding:20px 24px;background:linear-gradient(180deg,#f4f7fb,#eef2f8);color:var(--text-2);
+  font-weight:600;font-size:13px;border-bottom:1px solid var(--line);white-space:nowrap;letter-spacing:.2px;line-height:1.8}
+td{padding:22px 24px;border-bottom:1px solid var(--line-2);vertical-align:top;line-height:2.15}
+tbody tr:nth-child(even) td{background:#fafbfe}
+tbody tr{transition:background .12s ease}
+tbody tr:hover td{background:#eef4ff}
+tbody tr:last-child td{border-bottom:none}
+.log-msg{white-space:pre-wrap;word-break:break-word;line-height:2.1;color:#1e293b;max-width:100%;font-size:14px}
+.log-meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:10px;font-size:13px;color:var(--muted);line-height:1.9}
+.log-row{padding:22px 24px;border-bottom:1px solid var(--line-2);background:#fff}
+.log-row:nth-child(even){background:#fafbfe}
+.log-row:hover{background:#eef4ff}
+.vs-cell{white-space:pre-wrap;word-break:break-word;padding-right:12px;line-height:1.95;overflow:visible}
+.vs-msg{white-space:pre-wrap;word-break:break-word;line-height:2.05;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;max-height:8.2em}
+.info-card{margin-bottom:22px;background:linear-gradient(180deg,#fff,#f8fbff);padding:22px 24px;border:1px solid var(--line-2);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.info-card .title{font-weight:700;margin-bottom:12px;font-size:15px;line-height:1.8}
+.info-card .body{color:var(--text-2);line-height:2.2;font-size:14px}
+.info-card .actions{margin-top:16px;display:flex;gap:12px;flex-wrap:wrap}
+.kv{gap:16px 22px;line-height:2.1}
+.kv .key{padding:6px 0;color:var(--text-2);font-weight:600}
+.kv > div:not(.key){padding:6px 0;white-space:pre-wrap;word-break:break-word}
+.empty{padding:60px 28px;text-align:center;color:var(--muted);font-size:14px;line-height:2.2}
+.btn{padding:10px 18px;border-radius:var(--radius-s);background:var(--primary-g);color:#fff;font-weight:600;
+  box-shadow:0 3px 10px rgba(47,107,255,.28);line-height:1.95}
+.btn:hover{filter:brightness(1.06);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.sm{padding:7px 14px;font-size:13px;box-shadow:none;line-height:1.95}
+.btn.ghost{background:#fff;color:var(--text-2);border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+.btn.ghost:hover{background:#f6f8fc;color:var(--text)}
+.btn.danger{background:linear-gradient(135deg,#e5484d,#d22f3a);box-shadow:0 3px 10px rgba(226,72,77,.28)}
+.btn.danger:hover{background:#d22f3a}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;filter:none}
+.toolbar{display:flex;gap:14px;margin-bottom:22px;flex-wrap:wrap;align-items:center}
+.toolbar input{min-width:200px;background:var(--panel-2)}
+.toolbar input:focus{background:#fff}
+/* 弹窗 */
+.modal-mask{position:fixed;inset:0;background:rgba(13,24,44,.5);display:none;align-items:center;
+  justify-content:center;z-index:200;backdrop-filter:blur(2px)}
+.modal-mask.show{display:flex}
+.modal{background:#fff;border-radius:16px;width:540px;max-width:94vw;max-height:88vh;overflow:auto;
+  box-shadow:var(--shadow-lg);animation:modalIn .25s cubic-bezier(.2,.85,.3,1)}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(12px)}to{opacity:1;transform:none}}
+.modal-h{padding:18px 22px;border-bottom:1px solid var(--line-2);font-weight:700;font-size:15.5px;
+  display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,#fbfcfe,#f7f9fc)}
+.modal-h button{font-size:15px;color:var(--muted);border-radius:6px;width:30px;height:30px;line-height:1}
+.modal-h button:hover{background:#eef2f8;color:var(--text)}
+.modal-b{padding:22px}
+.modal-f{padding:15px 22px;border-top:1px solid var(--line-2);display:flex;justify-content:flex-end;gap:10px;background:#fafbfe}
+.field{margin-bottom:15px}
+.field label{display:block;font-size:12.5px;color:var(--text-2);margin-bottom:10px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;background:var(--panel-2)}
+.field input:focus,.field select:focus,.field textarea:focus{background:#fff}
+select{appearance:none;background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM1NTYtN2FhIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iNiA5IDEyIDE1IDE4IDkiLz48L3N2Zz4=");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:32px}
+/* toast */
+#toast{position:fixed;top:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.toast{background:#1f2937;color:#fff;padding:11px 18px;border-radius:12px;font-size:13px;font-weight:500;
+  box-shadow:0 8px 30px rgba(15,23,42,.3);animation:slide .28s cubic-bezier(.2,.85,.3,1);
+  border-left:4px solid #8896ab;min-width:220px;max-width:380px}
+.toast.ok{background:linear-gradient(135deg,#17a081,#0e8b6b);border-left-color:#0c785b}
+.toast.err{background:linear-gradient(135deg,#e5484d,#cf2e38);border-left-color:#b9262f}
+@keyframes slide{from{transform:translateX(40px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+.muted{color:var(--muted);font-size:12.5px}
+.mono{font-family:ui-monospace,Consolas,Menlo,monospace;font-size:12px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:9px 14px;font-size:13px}
+.kv .key{color:var(--text-2);font-weight:500}
+.progress{height:8px;background:#edf0f5;border-radius:6px;overflow:hidden}
+.progress>i{display:block;height:100%;background:linear-gradient(90deg,#16a085,#21c396);border-radius:6px;transition:width .4s ease}
+
+/* 响应式微调 */
+@media (max-width:900px){
+  .side{width:64px}
+  .side .brand{font-size:0;padding:4px 0 18px;text-align:center}
+  .side .brand small{display:none}
+  .side .brand::after{content:"🛡";font-size:20px}
+  .nav-item{padding:13px 0;justify-content:center;font-size:0;gap:0;white-space:nowrap}
+  .nav-item::before{display:none}
+  .nav-item .ic{font-size:17px;width:auto}
+  .main{margin-left:64px} 
+  .content{padding:16px}
+  /* 窄屏表格与操作列收窄：缩小内边距/按钮尺寸，操作列按钮自动换行且左对齐不错位 */
+  table{font-size:13px}
+  th{padding:11px 12px;font-size:12.5px;line-height:1.6}
+  td{padding:12px 12px;line-height:1.8}
+  .btn{padding:8px 13px;font-size:13px;line-height:1.7}
+  .btn.sm{padding:6px 10px;font-size:12px;line-height:1.7}
+  td .btn{margin:3px 4px 3px 0;vertical-align:middle}
+  .log-row{padding:14px 16px}
+  .log-msg{font-size:13px;line-height:1.9}
+  .kv{grid-template-columns:108px 1fr;gap:8px 10px;font-size:12.5px}
+  .toolbar{gap:10px;margin-bottom:16px}
+  .info-card .body{font-size:13px;line-height:1.9}
+}
+
+/* ================= 视觉增强层 · V3.0 ================= */
+body{background:
+  radial-gradient(1200px 620px at 6% -10%,rgba(47,107,255,.10),transparent 62%),
+  radial-gradient(900px 520px at 100% 0%,rgba(74,92,255,.075),transparent 58%),
+  var(--bg-grad);background-attachment:fixed}
+.content{max-width:1600px;margin:0 auto}
+.topbar{box-shadow:0 1px 0 rgba(15,23,42,.05),0 10px 26px -20px rgba(15,23,42,.55)}
+.topbar h2{letter-spacing:.2px}
+.side{box-shadow:3px 0 26px rgba(9,20,48,.26)}
+.brand{background:linear-gradient(90deg,rgba(255,255,255,.06),transparent)}
+.nav-item{margin-right:10px;border-radius:0 11px 11px 0;transition:all .18s cubic-bezier(.2,.8,.3,1)}
+.nav-item.active{box-shadow:inset 0 0 0 1px rgba(106,162,255,.16),0 4px 16px -10px rgba(0,0,0,.85)}
+.card{background:linear-gradient(180deg,#fff 0%,#fbfdff 100%);border:1px solid rgba(226,232,240,.95);
+  transition:transform .2s cubic-bezier(.2,.8,.3,1),box-shadow .2s,border-color .2s}
+.card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;border-radius:3px 3px 0 0;
+  background:linear-gradient(90deg,var(--primary),#4a5cff 55%,rgba(74,92,255,0));
+  opacity:0;transition:opacity .2s}
+.card:hover{transform:translateY(-3px);border-color:rgba(47,107,255,.3);
+  box-shadow:0 12px 30px -12px rgba(47,107,255,.34)}
+.card:hover::before{opacity:1}
+.card .v{font-variant-numeric:tabular-nums}
+.panel{border:1px solid rgba(226,232,240,.95);transition:box-shadow .2s}
+.panel:hover{box-shadow:var(--shadow-md)}
+.panel-h{background:linear-gradient(180deg,#fcfdff,#f4f8fd)}
+.info-card{border-left:3px solid rgba(47,107,255,.75)}
+.info-card:hover{box-shadow:var(--shadow-md)}
+table{border-collapse:separate;border-spacing:0}
+thead th{background:#f6f9fd;color:#5a6a86;font-size:12.5px;letter-spacing:.2px;
+  white-space:nowrap;border-bottom:1px solid #e6ecf5}
+tbody tr{transition:background .14s}
+tbody tr:nth-child(even){background:#fbfcfe}
+tbody tr:hover{background:#f1f6ff}
+tbody td{border-bottom:1px solid #f1f4f9}
+.btn{box-shadow:0 2px 8px -3px rgba(47,107,255,.5);letter-spacing:.2px}
+.btn:hover{filter:brightness(1.05)}
+.btn.ghost,.btn.sm{box-shadow:none}
+select,input[type=text],input[type=search]{background:#fbfcfe}
+select:hover,input:hover{border-color:#c9d6ea}
+.mono{font-family:"JetBrains Mono",Consolas,"Cascadia Mono",monospace;font-size:12.5px}
+.badge{white-space:nowrap}
+table td{vertical-align:middle}
+.g-detail{margin-top:7px;line-height:1.85;font-size:12px;max-width:360px;word-break:break-all;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+td .btn,th .btn{white-space:nowrap}
+.empty{padding:44px 16px;text-align:center;color:var(--muted);font-size:13px}
+::-webkit-scrollbar-thumb{background:#cbd5e6}
+.side::-webkit-scrollbar{width:8px}
+.side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border:2px solid transparent;
+  background-clip:content-box}
+@media(max-width:860px){.content{padding:16px 14px}}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="splash-inner">
+    <div class="splash-mark">🛡</div>
+    <div class="splash-name">蓝盾 BlueGuard</div>
+    <div class="splash-sub">主机主动防护引擎</div>
+    <div class="splash-bar"><i></i></div>
+    <div class="splash-tip" id="splashTip">正在进入…</div>
+  </div>
+</div>
+
+<div id="login">
+  <div class="login-card">
+    <h1>蓝盾 BlueGuard</h1>
+    <p>终端检测响应 · Workstation 版</p>
+    <div class="login-err" id="loginErr"></div>
+    <input id="lu" placeholder="用户名" value="admin" autocomplete="username" />
+    <input id="lp" type="password" placeholder="口令" autocomplete="current-password" />
+    <button type="button" data-act="doLogin">登 录</button>
+    <div style="margin-top:14px;font-size:12px;color:#9ca3af;text-align:center" id="loginHint"></div>
+  </div>
+</div>
+
+<div id="app">
+  <aside class="side">
+    <div class="brand">🛡 蓝盾 BlueGuard<small>终端防护引擎 V3.2</small></div>
+    <nav id="nav"></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <h2 id="pageTitle">总览仪表盘</h2>
+      <div class="right">
+        <span id="adminTag"></span>
+        <span id="who"></span>
+        <button class="btn ghost sm" data-act="logout">退出</button>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="modal-mask" id="mask"><div class="modal">
+  <div class="modal-h"><span id="mTitle"></span><button data-act="closeModal">✕</button></div>
+  <div class="modal-b" id="mBody"></div>
+  <div class="modal-f" id="mFoot"></div>
+</div></div>
+<div id="toast"></div>
+
+<script nonce="bg2026">
+const API = location.origin + '/api';
+let ME = null;
+
+const MENU = [
+  ['dashboard','总览仪表盘','◎'],['guard','防护中心','⬢'],['network','网络配置','⇄'],['alerts','告警研判','⚑'],
+  ['logs','日志检索','☰'],['live','实时监控','⚡'],['trace','IP 溯源','◈'],['assets','资产台账','▤'],
+  ['vulns','漏洞台账','⚠'],['baseline','基线核查','☑'],['incident','应急响应','⛨'],
+  ['duty','值班任务','◷'],['reports','报表中心','▦'],['audit','审计','🔒'],
+  ['notify','通知中心','✉'],['settings','系统管理','⚙'],
+];
+
+function toast(msg, type){ const d=document.createElement('div'); d.className='toast '+(type||'');
+  d.textContent=msg; document.getElementById('toast').appendChild(d);
+  setTimeout(()=>d.remove(), 3200); }
+
+async function api(path, opt={}){
+  const headers = {'Content-Type':'application/json'};
+  // 认证走 HttpOnly 会话 Cookie（同源 fetch 自动携带），前端不持有明文令牌
+  const res = await fetch(API+path, {method:opt.method||'GET', headers,
+    body: opt.body?JSON.stringify(opt.body):undefined});
+  if(res.status===401){ logout(true); throw new Error('未登录'); }
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.detail||data.message||('HTTP '+res.status));
+  return data;
+}
+
+async function doLogin(){
+  const u=document.getElementById('lu').value, p=document.getElementById('lp').value;
+  document.getElementById('loginErr').textContent='';
+  try{
+    const r = await api('/auth/login',{method:'POST',body:{username:u,password:p}});
+    // 令牌由服务端写入 HttpOnly Cookie，前端不落 localStorage、不持有明文
+    ME=r.user;
+    if(r.user.must_change_password){
+      toast('首次登录，请先修改初始口令','err');
+    }
+    boot();
+  }catch(e){ document.getElementById('loginErr').textContent = e.message; }
+}
+window.doLogin = doLogin;
+// 直接绑定登录按钮点击（避免事件委托时序问题）
+setTimeout(function(){
+  var btn = document.querySelector('[data-act="doLogin"]');
+  if(btn){
+    btn.onclick = function(e){ if(e) e.preventDefault(); doLogin(); return false; };
+  }
+}, 0);
+
+function showLogin(){ document.getElementById('login').classList.add('show'); }
+function hideLogin(){ document.getElementById('login').classList.remove('show'); }
+function hideSplash(){
+  const s = document.getElementById('splash');
+  if(!s) return;
+  s.classList.add('gone');
+  setTimeout(function(){ if(s && s.parentNode) s.parentNode.removeChild(s); }, 620);
+}
+window.showLogin = showLogin; window.hideLogin = hideLogin; window.hideSplash = hideSplash;
+
+function logout(silent){
+  if(silent){ document.getElementById('app').style.display='none'; showLogin(); return; }
+  location.reload();
+}
+window.logout = logout;
+
+async function boot(){
+  // 免登录模式：/auth/me 不需要任何凭据，直接拿到本机身份
+  try{
+    ME = await api('/auth/me');
+  }catch(e){ hideSplash(); showLogin(); return; }
+  const h = await api('/health');
+  hideLogin();
+  document.getElementById('app').style.display='block';
+  document.getElementById('who').textContent = ME.open_access ? '本机管理员'
+    : (ME.display_name || ME.username);
+  const tags = [h.admin ? '<span class="badge b-ok">管理员权限</span>'
+                        : '<span class="badge b-warn">普通权限</span>'];
+  if(ME.open_access) tags.push('<span class="badge b-info">免登录</span>');
+  document.getElementById('adminTag').innerHTML = tags.join(' ');
+  const lo = document.querySelector('[data-act="logout"]');
+  if(lo && ME.open_access) lo.textContent = '刷新';
+  document.getElementById('nav').innerHTML = MENU.map((m,i)=>
+    `<div class="nav-item${i===0?' active':''}" data-p="${m[0]}" data-act="go" data-a1="${m[0]}">
+       <span class="ic">${m[2]}</span>${m[1]}</div>`).join('');
+  // 双保险：直接绑定导航点击
+  document.querySelectorAll('#nav .nav-item').forEach(function(el){
+    el.onclick = function(){ var p = el.getAttribute('data-p') || el.getAttribute('data-a1'); if(p && window.go) window.go(p, el); };
+  });
+  // 记住当前页（#guard?tab=events 或 #guard/events 均可直达）
+  let raw = (location.hash || '').replace(/^#/, '');
+  try{ raw = decodeURIComponent(raw); }catch(e){}
+  const hp = raw.split(/[?\/]/)[0];
+  if(hp === 'guard'){
+    const TABS = ['overview','events','rules','policy','whitelist','responses'];
+    let cand = '';
+    const m = raw.match(/(?:[?\/&])tab=([a-z]+)/);
+    if(m) cand = m[1];
+    else{
+      const parts = raw.split('/');
+      if(parts.length > 1) cand = (parts[1] || '').split(/[?&]/)[0];
+    }
+    if(TABS.indexOf(cand) >= 0) GUARD_TAB = cand;
+  }
+  go(MENU.some(x => x[0] === hp) ? hp : 'dashboard');
+  document.body.setAttribute('data-route', hp + '|' + GUARD_TAB);
+  hideSplash();
+}
+window.boot = boot;
+window.addEventListener('hashchange', function(){
+  const p = (location.hash || '').replace(/^#/, '');
+  if(p && MENU.some(m => m[0] === p) && window.go) window.go(p);
+});
+
+let NAV_TOKEN = 0;
+function go(page, el){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  else{ const n=document.querySelector(`.nav-item[data-p="${esc(page)}"]`); if(n) n.classList.add('active'); }
+  const item = MENU.find(m=>m[0]===page);
+  document.getElementById('pageTitle').textContent = item?item[1]:page;
+  try{
+    if(history.replaceState){
+      let _h = '#' + page;
+      if(page === 'guard' && typeof GUARD_TAB === 'string') _h += '?tab=' + GUARD_TAB;
+      history.replaceState(null, '', _h);
+    }
+  }catch(e){}
+  const outer = document.getElementById('content');
+  const token = ++NAV_TOKEN;
+  // 每次渲染挂在自己的私有容器里：晚到的旧页面结果写进已脱离的节点，不会覆盖当前页
+  const box = document.createElement('div');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  outer.innerHTML = '';
+  outer.appendChild(box);
+  const fn = PAGES[page];
+  if(!fn){ box.innerHTML = '<div class="empty">该模块待接入</div>'; return; }
+  Promise.resolve(fn(box)).catch(e=>{
+    if(token === NAV_TOKEN) box.innerHTML = '<div class="empty">加载失败：' + esc(String((e && e.message) || e)) + '</div>';
+  });
+}
+window.go = go;
+
+// ========== 页面实现 ==========
+const PAGES = {};
+
+// ========== 体检结论卡（给不懂安全的人看的第一屏）==========
+function assessCard(a, opt){
+  if(!a) return '';
+  opt = opt || {};
+  const tone = a.level === 'risk' ? '#c0392b' : a.level === 'attention' ? '#e07b39' : '#2e9e5b';
+  const cls  = a.level === 'risk' ? 'b-danger' : a.level === 'attention' ? 'b-warn' : 'b-ok';
+  const icon = a.level === 'risk' ? '⚠' : a.level === 'attention' ? '◔' : '✔';
+  const rows = (a.items || []).map(function(it, i){
+    return '<div style="padding:13px 0;border-top:1px solid #eef2f8">'
+      + '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">'
+      + '<b style="font-size:14px">' + (i + 1) + '. ' + esc(it.name) + '</b>'
+      + sevBadge(it.severity)
+      + (it.count > 1 ? '<span class="badge b-gray">出现 ' + it.count + ' 次</span>' : '')
+      + '</div>'
+      + '<div style="margin-top:7px;line-height:1.95;font-size:13.5px;color:#39465a">' + esc(it.what) + '</div>'
+      + '<div style="margin-top:5px;line-height:1.95;font-size:13.5px;color:#1f6fd0">'
+      + '<b>怎么办：</b>' + esc(it.hint) + '</div></div>';
+  }).join('');
+  const empty = '<div style="padding:16px 0;color:#6b7a90;line-height:1.95">没查出问题。建议保持当前配置，定期回来点一次「立即扫描」。</div>';
+  const more = a.more > 0 ? '<span class="muted" style="margin-left:10px">还有 ' + a.more + ' 条没展开，去事件列表看全部</span>' : '';
+  return '<div class="panel" style="border-left:5px solid ' + tone + ';margin-bottom:22px">'
+    + '<div class="panel-b" style="padding:24px 26px">'
+    + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+    + '<span style="font-size:20px;color:' + tone + '">' + icon + '</span>'
+    + '<span class="badge ' + cls + '" style="font-size:13px;padding:5px 12px">' + esc(a.label) + '</span>'
+    + '<b style="font-size:16.5px">' + esc(a.headline) + '</b>'
+    + '</div>'
+    + '<div class="muted" style="margin-top:9px;line-height:1.9;font-size:13px">'
+    + '体检查的是什么：这台机器上正在跑什么程序、连了哪些网、开了哪些端口、开机自启了什么、防护开关有没有关。'
+    + '共 <b>' + (a.total || 0) + '</b> 条待处理项。</div>'
+    + (rows || (opt.hideEmpty ? '' : empty))
+    + '<div class="toolbar" style="margin-top:16px;gap:10px;flex-wrap:wrap">'
+    + '<button class="btn sm" data-act="guardRun" data-a1="' + (opt.deep ? '1' : '0') + '">立即扫描一轮</button>'
+    + '<button class="btn sm ghost" data-act="go" data-a1="guard">打开防护中心</button>'
+    + '<button class="btn sm ghost" data-act="go" data-a1="guard">逐条看事件</button>'
+    + more + '</div></div></div>';
+}
+
+PAGES.dashboard = async (c)=>{
+  const d = await api('/dashboard');
+  const card=(k,v,cls,tip)=>`<div class="card" style="padding:24px 26px"><div class="k" style="margin-bottom:12px">${esc(k)}</div><div class="v ${esc(cls||'')}">${esc(v)}</div>${tip?`<div class="muted" style="margin-top:14px;line-height:2.0;font-size:13px">${esc(tip)}</div>`:''}</div>`;
+  c.innerHTML = `
+  ${assessCard(d.assessment)}
+  <div class="info-card"><div class="title">其他模块 · 这是什么、能干什么</div>
+    <div class="body">
+      <b>防护中心</b>——这台机器安不安全，先看这里。<b>告警研判</b>——引擎发现的可疑行为汇总。<b>日志检索</b>——把 Windows 事件日志拉进来搜。<b>IP 溯源</b>——一个 IP 干过哪些事。<b>资产/漏洞/基线</b>——登记你管的服务器和它们的配置问题。<b>应急响应</b>——出事了开单跟人。<b>报表/审计</b>——给别人看的汇总，以及"谁改了什么"的不可篡改记录。
+    </div>
+    <div class="actions"><button class="btn sm" data-act="go" data-a1="guard">去防护中心</button><button class="btn sm ghost" data-act="guardRun" data-a1="0">立即扫描一轮</button><button class="btn sm ghost" data-act="go" data-a1="logs">去日志检索</button><button class="btn sm ghost" data-act="go" data-a1="alerts">去告警</button><button class="btn sm ghost" data-act="go" data-a1="trace">去溯源</button><button class="btn sm ghost" data-act="go" data-a1="dashboard">刷新总览</button></div></div>
+  <div class="cards" style="gap:14px">
+    ${card('资产总数', d.assets, '', '资产与漏洞页管理')}
+    ${card('待确认归属', d.authz_unconfirmed, d.authz_unconfirmed?'warn':'', '需确认授权范围')}
+    ${card('未闭环漏洞', d.vulns_open, d.vulns_open?'warn':'', '漏洞页可更新状态')}
+    ${card('严重漏洞', d.vulns_critical, d.vulns_critical?'danger':'', '优先处置')}
+    ${card('待研判告警', d.alerts_pending, d.alerts_pending?'danger':'', '告警页可直接研判')}
+    ${card('未闭环事件', d.incidents_open, d.incidents_open?'warn':'', '事件页可推进')}
+    ${card('日志总量', d.logs_total, '', '日志检索页可生成演示')}
+    ${card('封禁 IP', d.blocked_ips, '', '网络/联动产生')}
+    ${card('审计记录', d.audit_rows, '', '审计页查看哈希链')}
+  </div>
+  <div class="panel"><div class="panel-h"><h3>最近告警</h3><button class="btn sm ghost" data-act="go" data-a1="alerts">打开告警</button></div>
+    <div class="panel-b" style="padding:0;overflow:auto">${d.recent_alerts.length?`<table><thead><tr><th style="min-width:180px">规则</th><th>级别</th><th style="min-width:160px">源 IP</th><th>命中</th><th>研判</th></tr></thead><tbody>
+      ${d.recent_alerts.map(a=>`<tr><td style="line-height:2.0"><b>${esc(a.rule_name||'')}</b></td><td>${sevBadge(a.severity)}</td>
+        <td class="mono">${esc(a.src_ip||'-')}</td><td>${esc(a.hit_count)}</td><td>${triageBadge(a.triage)}</td></tr>`).join('')}
+      </tbody></table>`:'<div class="empty" style="padding:34px 28px;line-height:2.15">暂无告警。去「日志检索」生成演示日志，再到「告警」运行规则扫描。</div>'}</div></div>
+  <div class="panel"><div class="panel-h"><h3>最近事件</h3><button class="btn sm ghost" data-act="go" data-a1="incident">打开事件</button></div>
+    <div class="panel-b" style="padding:0;overflow:auto">${d.recent_incidents.length?`<table><thead><tr><th style="min-width:220px">标题</th><th>优先级</th><th>状态</th><th>负责人</th></tr></thead><tbody>
+      ${d.recent_incidents.map(i=>`<tr><td style="line-height:2.0">${esc(i.title)}</td><td>${priBadge(i.priority)}</td>
+        <td>${esc(i.status)}</td><td>${esc(i.owner||'-')}</td></tr>`).join('')}
+      </tbody></table>`:'<div class="empty" style="padding:34px 28px;line-height:2.15">暂无事件。可在「告警」对告警执行「转事件」。</div>'}</div></div>`;
+};
+
+PAGES.network = async (c)=>{
+  const d = await api('/network/ifaces');
+  const changes = await api('/network/changes');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">网络配置 · 直接操作看效果</div>
+    <div class="body">① 点 <b>刷新</b> 查看当前网卡；② 点 <b>快照</b> 保存配置；③ 点 <b>改 IP</b> 执行变更（高危，需管理员运行 exe；VMware/虚拟网卡可能被宿主管理程序恢复导致 Level1 失败并回滚）。变更后在「变更记录」点 <b>确认无误</b> 解除看门狗。</div></div>
+  ${d.admin ? '' : '<div class="panel" style="border-left:4px solid var(--warn);margin-bottom:22px"><div class="panel-b" style="padding:20px 24px;line-height:1.8"><b>当前非管理员权限</b>：可查看网卡与快照，但改 IP 会返回 ELEVATION_REQUIRED。请右键以管理员身份运行 BlueGuard.exe。</div></div>'}
+  <div class="panel"><div class="panel-h"><h3>网络适配器</h3>
+    <button class="btn sm ghost" data-act="go" data-a1="network">刷新</button></div>
+    <div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th style="min-width:220px">名称</th><th>状态</th><th style="min-width:170px">IPv4</th><th style="min-width:140px">网关</th><th>DHCP</th><th style="min-width:170px">操作</th></tr></thead><tbody>
+    ${d.ifaces.map(i=>`<tr><td style="line-height:2.0">${esc(i.name)}${i.is_default_route?' <span class="badge b-info">默认路由</span>':''}</td>
+      <td>${i.status==='Up'?'<span class="badge b-ok">Up</span>':'<span class="badge b-gray">'+i.status+'</span>'}</td>
+      <td class="mono" style="line-height:2.0">${i.ipv4.map(x=>x.ip+'/'+x.prefix).join('<br>')||'-'}</td>
+      <td class="mono">${esc(i.gateway||'-')}</td><td>${i.dhcp?'是':'否'}</td>
+      <td style="white-space:normal;line-height:2.4;padding-top:10px;padding-bottom:10px"><button class="btn sm ghost" data-name="${esc(i.name)}" data-act="snapFromBtn">快照</button>
+          <button class="btn sm" data-iface="${esc(JSON.stringify(i))}" data-act="changeFromBtn">改 IP</button></td></tr>`).join('')}
+    </tbody></table></div></div>
+  <div class="panel"><div class="panel-h"><h3>变更记录（五层兜底）</h3></div>
+    <div class="panel-b" style="padding:0;overflow:auto">${changes.length?`<table><thead><tr><th>#</th><th style="min-width:180px">网卡</th><th>状态</th><th style="min-width:170px">看门狗</th><th>操作人</th><th style="min-width:170px">时间</th><th style="min-width:120px">操作</th></tr></thead><tbody>
+      ${changes.map(x=>`<tr><td>${esc(x.id)}</td><td style="line-height:2.0">${esc(x.iface)}</td><td>${chgBadge(x.status)}</td>
+        <td class="mono" style="line-height:1.95">${esc(x.watchdog_until||'-')}</td><td>${esc(x.operator||'-')}</td><td class="muted mono" style="line-height:1.95">${esc(x.created_at)}</td>
+        <td>${x.status==='pending'?`<button class="btn sm" data-act="confirmChange" data-a1="${esc(x.id)}">确认无误</button>`:'<span class="muted">-</span>'}</td></tr>`).join('')}
+      </tbody></table>`:'<div class="empty" style="padding:34px 28px;line-height:2.15">暂无变更记录。可先对某网卡执行「快照」或「改 IP」（管理员）查看效果。</div>'}</div></div>`;
+};
+
+window.snapModal = async (name)=>{
+  try{ const r = await api('/network/snapshot',{method:'POST',body:{iface:name,reason:'手动快照'}});
+    toast('快照已保存 id='+r.snapshot_id,'ok'); go('network');
+  }catch(e){ toast('快照失败: '+e.message,'err'); }
+};
+
+window.snapFromBtn = (b)=>{ snapModal(b.getAttribute('data-name') || ''); };
+window.changeFromBtn = (b)=>{ let f = {}; try{ f = JSON.parse(b.getAttribute('data-iface') || '{}'); }catch(e){ f = {}; } changeModal(f.name || '', f); };
+window.changeModal = (name, info)=>{
+  const ip = (info.ipv4[0]||{}).ip||'';
+  const prefix = (info.ipv4[0]||{}).prefix||24;
+  openModal('修改网卡 IP —— '+name, `
+    <div class="field"><label>IP 地址</label><input id="f_ip" value="${esc(ip)}"></div>
+    <div class="field"><label>前缀长度</label><input id="f_prefix" value="${esc(prefix)}"></div>
+    <div class="field"><label>网关</label><input id="f_gw" value="${esc(info.gateway||'')}"></div>
+    <div class="field"><label>DNS（可选）</label><input id="f_dns" placeholder="8.8.8.8"></div>
+    <div class="field"><label>看门狗秒数（超时未确认自动回滚）</label><input id="f_wd" value="120"></div>
+    <div class="muted">⚠ 变更前会自动快照；三级验证失败立即回滚；成功后需在倒计时内点“确认无误”。</div>`,
+    `<button class="btn ghost" data-act="closeModal">取消</button>
+     <button class="btn danger" data-act="doChange" data-a1="${esc(name)}">执行变更</button>`);
+};
+
+window.doChange = async (name)=>{
+  const body = {iface:name, ip:gv('f_ip'), prefix:parseInt(gv('f_prefix')||'24'),
+    gateway:gv('f_gw'), dns:gv('f_dns')||null, watchdog_seconds:parseInt(gv('f_wd')||'120')};
+  closeModal(); toast('正在变更…');
+  try{
+    const r = await api('/network/change',{method:'POST',body});
+    if(r.ok){ toast('变更成功，看门狗 '+r.watchdog_seconds+' 秒，请确认','ok'); }
+    else if(r.stage==='verify'){ toast('三级验证未通过，已自动回滚','err'); }
+    else { toast('变更失败: '+(r.error||r.hint||''),'err'); }
+    go('network');
+  }catch(e){ toast('变更失败: '+e.message,'err'); }
+};
+
+window.confirmChange = async (id)=>{
+  try{ await api('/network/confirm/'+id,{method:'POST'}); toast('已确认，看门狗解除','ok'); go('network'); }
+  catch(e){ toast(e.message,'err'); }
+};
+
+PAGES.assets = async (c)=>{
+  const d = await api('/assets');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">资产管理 · 先自动发现，再人工补</div>
+    <div class="body">点 <b>自动发现本机</b> 把网卡 IP/MAC、系统版本、正在监听的端口一次性写进台账（可重复点，只更新不重复建）；<b>+ 新增资产</b> 补录别的机器；<b>详情</b> 看端口与服务，<b>删除</b> 可验证审计联动。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap"><input id="aq" placeholder="搜索名称/负责人/IP" data-enter="searchAsset" style="min-width:240px;flex:1">
+    <button class="btn ghost" data-act="searchAsset">搜索</button>
+    <button class="btn ghost" data-act="go" data-a1="assets">刷新</button>
+    <button class="btn" data-act="assetDiscover">自动发现本机</button>
+    <button class="btn ghost" data-act="assetModal">+ 新增资产</button></div>
+  <div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th style="min-width:160px">名称</th><th>类型</th><th style="min-width:150px">IP</th><th style="min-width:120px">负责人</th><th>重要度</th><th>归属确认</th><th>漏洞</th><th style="min-width:170px">操作</th></tr></thead><tbody>
+  ${d.items.length?d.items.map(a=>`<tr>
+    <td style="line-height:2.0"><b>${esc(a.name)}</b></td><td>${esc(a.asset_type)}</td>
+    <td class="mono" style="line-height:2.0">${(a.ips||[]).map(esc).join('<br>')||'-'}</td><td>${esc(a.owner||'-')}</td>
+    <td>${'★'.repeat(a.importance||0)||'-'}</td>
+    <td>${a.authz_confirmed?'<span class="badge b-ok">已确认</span>':'<span class="badge b-warn">待确认</span>'}</td>
+    <td>${esc(a.vuln_count)}</td>
+    <td style="white-space:normal;line-height:2.4;padding-top:10px;padding-bottom:10px"><button class="btn sm ghost" data-act="assetDetail" data-a1="${esc(a.id)}">详情</button>
+        <button class="btn sm danger" data-act="delAsset" data-a1="${esc(a.id)}">删除</button></td></tr>`).join('')
+  :'<tr><td colspan="8"><div class="empty" style="padding:38px 28px;line-height:2.2">还没有资产。点「自动发现本机」把这台机器录进来（网卡、系统、监听端口一次采完），再点「+ 新增资产」补别的机器。</div></td></tr>'}
+  </tbody></table></div></div>`;
+};
+window.assetDiscover = async (el)=>{
+  const btn = (el && el.tagName === 'BUTTON') ? el : null;
+  if(btn){ btn.disabled = true; btn.textContent = '正在发现…'; }
+  try{
+    const r = await api('/assets/discover',{method:'POST'});
+    toast(r.summary + (r.ip_new?('，新增 ' + r.ip_new + ' 个 IP'):'') + (r.service_new?('、' + r.service_new + ' 个端口'):''), 'ok');
+    go('assets');
+  }catch(e){
+    toast('自动发现失败: ' + e.message, 'err');
+    if(btn){ btn.disabled = false; btn.textContent = '自动发现本机'; }
+  }
+};
+window.searchAsset = async ()=>{ const q=document.getElementById('aq').value;
+  const d = await api('/assets?q='+encodeURIComponent(q));
+  const c=document.getElementById('content'); const old=PAGES.assets; 
+  // 简单重绘
+  c.innerHTML=''; PAGES.assets(c);
+  setTimeout(()=>{ const i=document.getElementById('aq'); if(i){i.value=q;} },50);
+};
+window.assetModal = ()=>{
+  openModal('新增资产',`
+    <div class="field"><label>名称 *</label><input id="a_name"></div>
+    <div class="field"><label>IP</label><input id="a_ip" placeholder="192.168.1.10"></div>
+    <div class="field"><label>类型</label><select id="a_type"><option>host</option><option>server</option><option>network</option></select></div>
+    <div class="field"><label>负责人</label><input id="a_owner"></div>
+    <div class="field"><label>重要度 (1-5)</label><input id="a_imp" type="number" value="3" min="1" max="5"></div>`,
+    `<button class="btn ghost" data-act="closeModal">取消</button>
+     <button class="btn" data-act="saveAsset">保存</button>`);
+};
+window.saveAsset = async ()=>{
+  try{ await api('/assets',{method:'POST',body:{name:gv('a_name'),ip:gv('a_ip')||null,
+      asset_type:gv('a_type'),owner:gv('a_owner'),importance:parseInt(gv('a_imp')||'3')}});
+    closeModal(); toast('已创建','ok'); go('assets');
+  }catch(e){ toast(e.message,'err'); }
+};
+window.delAsset = async (id)=>{
+  if(!confirm('确定删除该资产？')) return;
+  try{ await api('/assets/'+id,{method:'DELETE'}); toast('已删除','ok'); go('assets'); }
+  catch(e){ toast(e.message,'err'); }
+};
+window.assetDetail = async (id)=>{
+  const a = await api('/assets/'+id);
+  openModal('资产详情 · '+a.name, `
+    <div class="kv"><div class="key">ID</div><div>${esc(a.id)}</div>
+    <div class="key">IP</div><div class="mono">${(a.ips||[]).map(x=>x.ip).join(', ')||'-'}</div>
+    <div class="key">负责人</div><div>${esc(a.owner||'-')}</div>
+    <div class="key">操作系统</div><div>${esc(a.os||'-')}</div>
+    <div class="key">归属确认</div><div>${a.authz_confirmed?'已确认':'待确认'}</div>
+    <div class="key">监听端口</div><div>${esc((a.services||[]).length)} 个</div>
+    <div class="key">关联漏洞</div><div>${esc((a.vulns||[]).length)} 个</div></div>
+    ${(a.services||[]).length?`<div style="margin-top:12px"><table><thead><tr><th style="width:90px">端口</th><th style="width:80px">协议</th><th style="width:130px">服务</th><th>监听进程 / 绑定地址</th></tr></thead><tbody>
+      ${a.services.map(s=>`<tr><td class="mono">${esc(s.port)}</td><td>${esc(s.protocol)}</td><td>${esc(s.service||'-')}</td><td class="mono" style="word-break:break-all;line-height:1.9">${esc(s.banner||'-')}</td></tr>`).join('')}
+    </tbody></table></div>`:'<div class="muted" style="margin-top:10px">没有采集到监听端口，点「自动发现本机」刷新一次。</div>'}`,
+    `<button class="btn ghost" data-act="closeModal">关闭</button>`);
+};
+
+PAGES.vulns = async (c)=>{
+  const d = await api('/vulns');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">漏洞管理 · 直接操作看效果</div>
+    <div class="body">点 <b>+ 登记漏洞</b> 添加一条测试漏洞；点 <b>详情</b> 可标记修复中/已修复，状态流转和审计立即可见。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap"><button class="btn" data-act="vulnModal">+ 登记漏洞</button>
+    <button class="btn ghost" data-act="go" data-a1="vulns">刷新</button>
+    <span class="muted">共 ${esc(d.total)} 条</span></div>
+  <div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th style="min-width:220px">标题</th><th style="min-width:140px">CVE</th><th>严重级</th><th>CVSS</th><th>状态</th><th style="min-width:170px">SLA</th><th style="min-width:120px">操作</th></tr></thead><tbody>
+  ${d.items.length?d.items.map(v=>`<tr>
+    <td style="line-height:2.0"><b>${esc(v.title)}</b></td><td class="mono">${esc(v.cve||'-')}</td>
+    <td>${sevBadge(v.severity)}</td><td>${esc(v.cvss)}</td><td>${vulnBadge(v.status)}</td>
+    <td class="mono" style="line-height:1.95">${esc(v.sla_due||'-')}</td>
+    <td><button class="btn sm ghost" data-act="vulnDetail" data-a1="${esc(v.id)}">详情/处理</button></td></tr>`).join('')
+  :'<tr><td colspan="7"><div class="empty" style="padding:38px 28px;line-height:2.2">暂无漏洞记录。点「+ 登记漏洞」创建测试项，立即看到效果。</div></td></tr>'}
+  </tbody></table></div></div>`;
+};
+window.vulnModal = ()=>{
+  openModal('登记漏洞',`
+    <div class="field"><label>标题 *</label><input id="v_title"></div>
+    <div class="field"><label>CVE</label><input id="v_cve" placeholder="CVE-2021-44228"></div>
+    <div class="field"><label>严重级</label><select id="v_sev">
+      <option value="critical">critical</option><option value="high">high</option>
+      <option value="medium" selected>medium</option><option value="low">low</option></select></div>
+    <div class="field"><label>CVSS</label><input id="v_cvss" type="number" step="0.1" value="0"></div>
+    <div class="field"><label>关联资产 ID（逗号分隔，可选）</label><input id="v_assets"></div>`,
+    `<button class="btn ghost" data-act="closeModal">取消</button>
+     <button class="btn" data-act="saveVuln">保存</button>`);
+};
+window.saveVuln = async ()=>{
+  const ids = gv('v_assets').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+  try{ await api('/vulns',{method:'POST',body:{title:gv('v_title'),cve:gv('v_cve'),
+      severity:gv('v_sev'),cvss:parseFloat(gv('v_cvss')||'0'),asset_ids:ids}});
+    closeModal(); toast('已登记','ok'); go('vulns');
+  }catch(e){ toast(e.message,'err'); }
+};
+window.vulnDetail = async (id)=>{
+  const v = await api('/vulns/'+id);
+  openModal('漏洞 · '+v.title, `
+    <div class="kv"><div class="key">CVE</div><div class="mono">${esc(v.cve||'-')}</div>
+    <div class="key">严重级</div><div>${sevBadge(v.severity)}</div>
+    <div class="key">CVSS</div><div>${esc(v.cvss)}</div>
+    <div class="key">状态</div><div>${vulnBadge(v.status)}</div>
+    <div class="key">SLA</div><div>${esc(v.sla_due||'-')}</div>
+    <div class="key">关联资产</div><div>${v.assets.map(a=>a.name).join(', ')||'-'}</div></div>
+    <div style="margin-top:14px"><b>变更历史</b>
+      <table style="margin-top:12px"><tbody>${v.events.map(e=>`<tr><td class="muted">${esc(e.created_at)}</td>
+      <td>${esc(e.from_status||'—')} → <b>${esc(e.to_status)}</b></td><td>${esc(e.note||'')}</td><td>${esc(e.operator||'')}</td></tr>`).join('')}</tbody></table>
+    </div>`,
+    `<button class="btn ghost" data-act="closeModal">关闭</button>
+     <button class="btn" data-act="vulnTrans" data-a1="${esc(id)}" data-a2="fixing">标记修复中</button>
+     <button class="btn" data-act="vulnTrans" data-a1="${esc(id)}" data-a2="fixed">标记已修复</button>`);
+};
+window.vulnTrans = async (id,to)=>{
+  try{ await api('/vulns/'+id+'/transition',{method:'POST',body:{to_status:to}});
+    closeModal(); toast('已更新','ok'); go('vulns');
+  }catch(e){ toast(e.message,'err'); }
+};
+
+PAGES.logs = async (c)=>{
+  c.innerHTML = `
+  <div class="info-card"><div class="title">日志检索 · 先采真实日志，再检索</div>
+    <div class="body">① 点 <b>采集 Windows 日志</b>：从本机 System / Application 事件日志抓最近 48 小时的记录（按「时间+正文」去重，反复点不会灌重复；Security 需管理员）；② 输入关键词/IP/主机即时检索，FTS5 全文索引优先，中文两字词自动走 LIKE 兜底；③ 结果虚拟滚动，长内容折行、悬停看全文。<b>生成演示日志</b> 只用于演示检索，正式环境别点。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <div style="flex:1;min-width:280px"><div class="muted" style="margin-bottom:12px;line-height:1.8">关键词 / 源 IP / 主机 / 内容</div><input id="lq" placeholder="例如 203.0.113.5 / login / failed / 服务器" style="width:100%"
+      data-enter="doSearch" data-input="debounceSearch"></div>
+    <div style="min-width:150px"><div class="muted" style="margin-bottom:12px;line-height:1.8">级别</div>
+      <select id="llevel" data-input="debounceSearch" style="width:100%">
+        <option value="">全部</option><option value="error">错误</option><option value="warn">警告</option><option value="info">信息</option>
+      </select></div>
+    <button class="btn" data-act="doSearch">检索</button>
+    <button class="btn" data-act="collectReal">采集 Windows 日志</button>
+    <button class="btn ghost" data-act="ingest">生成演示日志</button>
+  </div>
+  <div class="muted" id="lmode" style="margin:8px 0 12px;line-height:2.0"></div>
+  <div class="panel"><div class="panel-h"><h3>日志列表</h3><div class="muted">时间 / 级别 / 主机 / 源IP / 内容（可读排版）</div></div>
+    <div class="panel-b" id="logTable" style="padding:0"><div class="empty" style="padding:24px">加载中…</div></div></div>`;
+  doSearch();
+};
+let _sTimer = null;
+window.debounceSearch = ()=>{ clearTimeout(_sTimer); _sTimer = setTimeout(()=>doSearch(), 300); };
+window.doSearch = async ()=>{
+  const q = document.getElementById('lq') ? document.getElementById('lq').value : '';
+  const lv = document.getElementById('llevel') ? document.getElementById('llevel').value : '';
+  const t = document.getElementById('logTable');
+  if(!t) return;
+  const qs = '&level='+encodeURIComponent(lv);
+  try{
+    const c0 = await api('/logs?q='+encodeURIComponent(q)+qs+'&size=1');
+    const lm = document.getElementById('lmode');
+    if(lm) lm.textContent = `命中 ${esc(c0.total)} 条 · 检索通道: ${c0.mode==='fts5'?'FTS5 trigram':(c0.mode==='like'?'LIKE 兜底':'条件过滤')}${lv?(' · 只看 '+lv):''} · 日志内容自动折行显示`;
+    if(!t._vs){
+      t.innerHTML='';
+      t._vs = window.makeVS({
+        rowH:118, maxH:'70vh',
+        cols:[188,88,150,160,'1fr'],
+        head:['时间','级别','主机','源 IP','日志内容'],
+        fetchPage:function(cursor){ return api('/logs?q='+encodeURIComponent(q)+qs+'&size=200&page='+(Math.floor(cursor/200)+1)).then(function(d){ var r=d.items||[]; return {rows:r, atEnd:r.length<200}; }); },
+        onRender:function(l){ return ['<span class="mono vs-cell" title="'+esc(l.ts)+'">'+esc(l.ts||'-')+'</span>', '<div style="padding-top:2px">'+lvlBadge(l.level)+'</div>', '<span class="vs-cell" title="'+esc(l.host||'-')+'">'+esc(l.host||'-')+'</span>', '<span class="mono vs-cell" title="'+esc(l.src_ip||'-')+'">'+esc(l.src_ip||'-')+'</span>', '<span class="vs-msg" title="'+esc(l.message||'')+'">'+esc(l.message||'')+'</span>']; }
+      });
+      t.appendChild(t._vs);
+    } else {
+      t._vs._updateQuery();
+      t._vs._fetchQ = q;
+    }
+    t._vs._loadMore();
+  }catch(e){ t.innerHTML='<div class="empty">检索失败: '+(e&&e.message?e.message:e)+'</div>'; }
+};
+window.ingest = async ()=>{
+  try{ const r = await api('/logs/ingest',{method:'POST',body:{count:200}});
+    toast('已生成 '+r.inserted+' 条演示日志','ok'); doSearch();
+  }catch(e){ toast(e.message,'err'); }
+};
+window.collectReal = async (el)=>{
+  const btn = (el && el.tagName === 'BUTTON') ? el : null;
+  if(btn){ btn.disabled = true; btn.textContent = '正在采集…'; }
+  try{
+    const r = await api('/logs/collect',{method:'POST',body:{log_names:['System','Application'],max_events:150,since_hours:48}});
+    const parts = (r.logs||[]).map(function(x){ return x.ok ? (x.log+' 新增 '+x.inserted) : (x.log+' 失败'); });
+    toast('采集完成：新增 '+r.inserted+' 条'+(r.skipped?('，跳过重复/过期 '+r.skipped+' 条'):'')+'（'+parts.join('，')+'）', r.inserted?'ok':'warn');
+    doSearch();
+  }catch(e){ toast('采集失败: '+e.message,'err'); }
+  if(btn){ btn.disabled = false; btn.textContent = '采集 Windows 日志'; }
+};
+
+PAGES.live = async (c)=>{
+  c.innerHTML = `
+  <div class="info-card"><div class="title">实时监控 · 外部IP活动</div>
+    <div class="body">① 点 <b>启动监控</b>，后台每隔几秒轮询本机活动 TCP 连接与安全日志；② 发现外部IP（非内网/回环）连接或登录失败时，立即写入日志并生成告警；③ 下方列表按时间倒序展示，点 <b>立即溯源</b> 可跳转到「IP 溯源」查看该 IP 的完整时间线。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <div style="flex:1;min-width:220px"><div class="muted" style="margin-bottom:10px;line-height:1.8">轮询间隔（秒）</div><input id="liveInterval" type="number" value="5" min="2" max="60" style="width:100%"></div>
+    <button class="btn" data-act="liveStart">启动监控</button>
+    <button class="btn danger" data-act="liveStop">停止监控</button>
+    <button class="btn ghost" data-act="liveRefresh">刷新状态</button>
+    <button class="btn ghost" data-act="go" data-a1="trace">去 IP 溯源</button>
+  </div>
+  <div class="muted" id="liveStatus" style="margin:8px 0 12px;line-height:2.0">未启动</div>
+  <div class="panel"><div class="panel-h"><h3>实时事件</h3><div class="muted">外部连接 / 安全日志 / 自动告警（最多 200 条，按时间倒序）</div></div>
+    <div class="panel-b" id="liveTable" style="padding:0"><div class="empty" style="padding:24px">点击「启动监控」开始观察</div></div></div>`;
+  if(window.liveRefreshUI) liveRefreshUI();
+};
+let _liveTimer = null;
+window.liveRefreshUI = async ()=>{
+  try{
+    const s = await api('/live/status');
+    const st = document.getElementById('liveStatus');
+    if(st){
+      st.innerHTML = (s.running?'<span style="color:var(--danger);font-weight:700">● 运行中</span>':'<span style="color:var(--muted)">○ 未启动</span>')
+        + ' · 轮询 '+s.polls+' 次 · 外部IP '+s.external_seen+' 个 · 事件 '+s.events_created+' 条'
+        + (s.last_error?' · <span style="color:var(--danger)">上次错误: '+esc(s.last_error)+'</span>':'');
+    }
+    const evs = await api('/live/events?limit=200');
+    const t = document.getElementById('liveTable');
+    if(!t) return;
+    const items = evs.items||[];
+    if(!items.length){
+      t.innerHTML='<div class="empty" style="padding:24px">暂无实时事件</div>';
+      return;
+    }
+    t.innerHTML = '<table><thead><tr><th style="min-width:170px">时间</th><th style="min-width:150px">类型</th><th style="min-width:140px">外部IP</th><th style="min-width:110px">级别</th><th style="min-width:120px">本地端口</th><th style="min-width:100px">进程</th><th style="min-width:260px">详情</th><th style="min-width:120px">操作</th></tr></thead><tbody>'+
+      items.map(e=>`<tr>
+        <td class="mono vs-cell">${esc(e.ts||'-')}</td>
+        <td class="vs-cell">${esc(e.kind||'-')}</td>
+        <td class="mono vs-cell">${esc(e.remote_ip||'-')}</td>
+        <td><span class="badge ${e.severity==='high'?'b-danger':(e.severity==='medium'?'b-warn':'b-info')}">${esc(e.severity||'info')}</span></td>
+        <td class="mono vs-cell">${esc(e.local_port||'-')}</td>
+        <td class="vs-cell">${esc(e.process_name||'-')}</td>
+        <td class="vs-msg" title="${esc(e.detail||'')}">${esc(e.detail||'')}</td>
+        <td style="white-space:normal;line-height:2.2;padding-top:10px;padding-bottom:10px">
+          ${e.remote_ip?`<button class="btn sm" data-act="traceIp" data-a1="${esc(e.remote_ip)}">溯源该IP</button>`:'<span class="muted">—</span>'}
+        </td>
+      </tr>`).join('')+'</tbody></table>';
+  }catch(e){
+    const t=document.getElementById('liveTable');
+    if(t) t.innerHTML='<div class="empty">刷新失败: '+esc(e.message||e)+'</div>';
+  }
+};
+window.liveStart = async ()=>{
+  const iv = document.getElementById('liveInterval') ? parseInt(document.getElementById('liveInterval').value||'5',10) : 5;
+  try{
+    const r = await api('/live/start',{method:'POST',body:{interval_sec:iv}});
+    toast('实时监控已启动，间隔 '+iv+' 秒','ok');
+  }catch(e){ toast('启动失败: '+e.message,'err'); return; }
+  if(window.liveRefreshUI) window.liveRefreshUI();
+  _liveTimer = setInterval(function(){ if(window.liveRefreshUI) window.liveRefreshUI(); }, 3000);
+};
+window.liveStop = async ()=>{
+  try{ await api('/live/stop',{method:'POST'}); }catch(e){}
+  if(_liveTimer){ clearInterval(_liveTimer); _liveTimer=null; }
+  toast('实时监控已停止','ok');
+  if(window.liveRefreshUI) window.liveRefreshUI();
+};
+window.liveRefresh = function(){ if(window.liveRefreshUI) window.liveRefreshUI(); };
+// 页面切换时自动停止轮询，避免后台空转
+const _origGo = window.go;
+window.go = function(page){
+  if(_liveTimer){ clearInterval(_liveTimer); _liveTimer=null; }
+  return _origGo(page);
+};
+
+PAGES.alerts = async (c)=>{
+  const d = await api('/alerts');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">告警页 · 直接操作看效果</div>
+    <div class="body">1) 去「日志检索」点 <b>生成演示日志</b>；2) 回本页点 <b>运行规则扫描</b>；3) 对待研判告警点 <b>真实/误报/转事件</b>。操作后有 toast 提示并自动刷新。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap"><button class="btn" data-act="scanAlerts">运行规则扫描</button>
+    <button class="btn ghost" data-act="go" data-a1="logs">去日志检索</button>
+    <span class="muted">共 ${esc(d.total)} 条告警 · 展示已放宽</span></div>
+  <div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th style="min-width:240px">规则/详情</th><th>级别</th><th style="min-width:160px">源 IP</th><th style="min-width:140px">主机</th><th>命中</th><th style="min-width:90px">研判</th><th style="min-width:320px">操作</th></tr></thead><tbody>
+  ${d.items.length?d.items.map(a=>`<tr>
+    <td><b>${esc(a.rule_name||'')}</b><div class="muted" style="margin-top:10px;white-space:pre-wrap;word-break:break-word;line-height:2.0">${esc((a.detail||'').slice(0,180))}</div></td><td>${sevBadge(a.severity)}</td>
+    <td class="mono" style="white-space:pre-wrap;word-break:break-word">${esc(a.src_ip||'-')}</td><td>${esc(a.host||'-')}</td><td><b>${esc(a.hit_count)}</b></td>
+    <td>${triageBadge(a.triage)}</td>
+    <td style="white-space:normal;line-height:2.4;padding-top:10px;padding-bottom:10px">${a.triage==='pending'?`
+      <button class="btn sm" data-act="triageAlert" data-a1="${esc(a.id)}" data-a2="true_positive">标记真实</button>
+      <button class="btn sm ghost" data-act="triageAlert" data-a1="${esc(a.id)}" data-a2="false_positive">标记误报</button>
+      <button class="btn sm ghost" data-act="toIncident" data-a1="${esc(a.id)}">转事件</button>`:'<span class="muted">已处理</span>'}</td></tr>`).join('')
+  :'<tr><td colspan="7"><div class="empty" style="padding:40px 28px;line-height:2.2">暂无告警。<br>① 去「日志检索」点击「生成演示日志」<br>② 回本页点击「运行规则扫描」查看效果</div></td></tr>'}
+  </tbody></table></div></div>`;
+};
+window.scanAlerts = async ()=>{
+  try{ const r = await api('/alerts/scan',{method:'POST'});
+    toast('扫描完成，新增 '+r.created+' 条告警','ok'); go('alerts');
+  }catch(e){ toast(e.message,'err'); }
+};
+window.triageAlert = async (id,t)=>{
+  try{ await api('/alerts/'+id+'/triage',{method:'POST',body:{triage:t}}); toast('已研判','ok'); go('alerts'); }
+  catch(e){ toast(e.message,'err'); }
+};
+window.toIncident = async (id)=>{
+  try{ const r = await api('/alerts/'+id+'/to-incident',{method:'POST',body:{priority:'P2'}});
+    toast('已转为事件 #'+r.id,'ok'); go('alerts');
+  }catch(e){ toast(e.message,'err'); }
+};
+
+PAGES.trace = async (c)=>{
+  c.innerHTML = `
+  <div class="info-card"><div class="title">IP 溯源 · 直接操作看效果</div>
+    <div class="body">输入 IP 后点 <b>立即溯源</b>。建议先在「日志检索」生成演示日志、在「告警」运行扫描，再溯源相关 IP，时间线与命中更明显。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap"><input id="tip" placeholder="输入 IP 溯源，如 203.0.113.5" style="min-width:280px;flex:1"
+     data-enter="doTrace" value="203.0.113.5">
+    <button class="btn" data-act="doTrace">立即溯源</button>
+    <button class="btn ghost" data-act="go" data-a1="logs">去日志页</button></div>
+  <div id="traceR"><div class="panel"><div class="panel-b empty" style="padding:34px 28px;line-height:2.15">已填入示例 IP 203.0.113.5，直接点「立即溯源」查看效果。</div></div></div>`;
+};
+window.doTrace = async ()=>{
+  const ip = document.getElementById('tip').value.trim();
+  if(!ip){ toast('请输入 IP','err'); return; }
+  const r = document.getElementById('traceR');
+  r.innerHTML='<div class="panel"><div class="panel-b empty">分析中…</div></div>';
+  try{
+    const d = await api('/trace/'+encodeURIComponent(ip));
+    r.innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="k">风险分</div><div class="v ${d.risk_score>=70?'danger':(d.risk_score>=40?'warn':'ok')}">${esc(d.risk_score)}</div></div>
+      <div class="card"><div class="k">日志命中</div><div class="v">${esc(d.log_hits)}</div></div>
+      <div class="card"><div class="k">IOC 命中</div><div class="v">${d.ioc?'是':'否'}</div></div>
+      <div class="card"><div class="k">关联资产</div><div class="v">${d.asset?d.asset.name:'—'}</div></div>
+    </div>
+    <div class="panel"><div class="panel-h"><h3>溯源时间线 · ${esc(ip)}</h3></div><div class="panel-b" style="padding:0">
+      ${d.timeline && d.timeline.length ? d.timeline.map(t=>`<div style="padding:22px 26px;border-bottom:1px solid var(--line-2);line-height:2.15"><div class="log-meta"><span class="mono">${esc(t.ts||'-')}</span><span class="badge b-info">${esc(t.type||'event')}</span></div><div style="white-space:pre-wrap;word-break:break-word">${esc(t.detail||'')}</div></div>`).join('') : '<div class="empty" style="padding:34px 28px;line-height:2.15">该 IP 暂无本地关联记录。可先在「日志检索」生成演示日志/采集系统日志，再回来溯源。</div>'}
+    </div></div>`;
+    toast('溯源完成：'+ip+'，风险分 '+d.risk_score,'ok');
+  }catch(e){ r.innerHTML = '<div class="panel"><div class="panel-b empty">失败: '+esc(e.message)+'</div></div>'; }
+};
+
+PAGES.baseline = async (c)=>{
+  const pols = await api('/baseline/policies');
+  const f = await api('/baseline/findings');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">基线核查 · 直接操作看效果</div>
+    <div class="body">① 点 <b>初始化基线策略</b>（首次）；② 点 <b>执行核查</b>；③ 下方矩阵显示合规/不合规/无法核查结果。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap"><button class="btn ghost" data-act="seedBaseline">初始化基线策略</button>
+    <button class="btn" data-act="runBaseline">执行核查</button>
+    <button class="btn ghost" data-act="go" data-a1="baseline">刷新</button>
+    <span class="muted">合规率 ${f.compliance||0}% · 共 ${f.total||0} 项</span></div>
+  <div class="panel"><div class="panel-h"><h3>基线策略</h3></div><div class="panel-b" style="padding:0">
+    ${pols.length?pols.map(p=>`<div style="padding:22px 26px;border-bottom:1px solid var(--line-2);line-height:2.15">
+      <b>${esc(p.name)}</b> <span class="badge b-info">${esc(p.standard)}</span>
+      <span class="muted" style="margin-left:8px">${esc((p.items||[]).length)} 个检查项</span></div>`).join(''):'<div class="empty" style="padding:34px 28px;line-height:2.15">尚未初始化，点「初始化基线策略」。</div>'}
+  </div></div>
+  <div class="panel"><div class="panel-h"><h3>核查结果矩阵</h3></div><div class="panel-b" style="padding:0;overflow:auto">
+    ${f.matrix&&f.matrix.length?`<table><thead><tr><th style="min-width:240px">检查项</th><th style="min-width:140px">资产</th><th>结果</th><th style="min-width:260px">说明</th></tr></thead><tbody>
+      ${f.matrix.map(m=>`<tr><td style="line-height:2.0">${esc(m.code)} ${esc(m.title)}</td><td>${esc(m.asset_name||'-')}</td>
+        <td>${m.result==='compliant'?'<span class="badge b-ok">合规</span>':(m.result==='non_compliant'?'<span class="badge b-danger">不合规</span>':'<span class="badge b-gray">无法核查</span>')}</td>
+        <td class="muted" style="line-height:2.0;white-space:pre-wrap;word-break:break-word">${esc(m.detail||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:34px 28px;line-height:2.15">尚无核查结果。先初始化策略，再点「执行核查」。</div>'}
+  </div></div>`;
+};
+window.seedBaseline = async ()=>{ try{ await api('/baseline/policies/seed',{method:'POST'});
+  toast('已初始化','ok'); go('baseline'); }catch(e){ toast(e.message,'err'); } };
+window.runBaseline = async ()=>{ try{ const r = await api('/baseline/run',{method:'POST',body:{asset_ids:[]}});
+  toast('核查完成，合规率 '+r.compliance+'%','ok'); go('baseline'); }catch(e){ toast(e.message,'err'); } };
+
+PAGES.incident = async (c)=>{
+  const d = await api('/incidents');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">安全事件 · 直接操作看效果</div>
+    <div class="body">事件可由「告警」页的 <b>转事件</b> 创建。点 <b>处置</b> 查看详情并推进状态（若页面支持）。</div>
+    <div class="actions"><button class="btn sm ghost" data-act="go" data-a1="alerts">去告警创建事件</button></div></div>
+  <div class="toolbar"><button class="btn ghost" data-act="go" data-a1="incident">刷新</button><span class="muted">共 ${esc(d.total)} 个事件</span></div>
+  <div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th style="min-width:260px">标题</th><th>优先级</th><th style="min-width:120px">状态</th><th>负责人</th><th style="min-width:120px">操作</th></tr></thead><tbody>
+  ${d.items.length?d.items.map(i=>`<tr><td style="line-height:2.05"><b>${esc(i.title)}</b></td><td>${priBadge(i.priority)}</td>
+    <td>${esc(i.status)}</td><td>${esc(i.owner||'-')}</td>
+    <td><button class="btn sm ghost" data-act="incDetail" data-a1="${esc(i.id)}">处置</button></td></tr>`).join('')
+  :'<tr><td colspan="5"><div class="empty" style="padding:38px 28px;line-height:2.2">暂无事件。去「告警」运行扫描并对告警点「转事件」，即可在此看到效果。</div></td></tr>'}
+  </tbody></table></div></div>`;
+};
+window.incDetail = async (id)=>{
+  const i = await api('/incidents/'+id);
+  openModal('事件处置 · '+i.title, `
+    <div class="kv"><div class="key">优先级</div><div>${priBadge(i.priority)}</div>
+    <div class="key">状态</div><div>${esc(i.status)}</div></div>
+    <div style="margin-top:14px"><b>处置动作</b>
+      <table style="margin-top:12px"><tbody>${i.actions.length?i.actions.map(a=>`<tr>
+        <td>${esc(a.action_type)}</td><td class="mono">${esc(a.target||'')}</td>
+        <td>${esc(a.result||'')}</td><td class="muted">${esc(a.created_at)}</td></tr>`).join(''):'<tr><td class="muted">暂无动作</td></tr>'}</tbody></table>
+    </div>
+    <div class="field" style="margin-top:14px"><label>封禁 IP</label>
+      <input id="blk_ip" placeholder="203.0.113.99"></div>`,
+    `<button class="btn ghost" data-act="closeModal">关闭</button>
+     <button class="btn danger" data-act="doBlock" data-a1="${esc(id)}">封禁该 IP</button>
+     <button class="btn" data-act="incTrans" data-a1="${esc(id)}" data-a2="closed">关闭事件</button>`);
+};
+window.doBlock = async (id)=>{
+  try{ const r = await api('/incidents/'+id+'/block',{method:'POST',body:{ip:gv('blk_ip'),reason:'应急封禁'}});
+    if(r.ok){ toast('已封禁并写防火墙','ok'); } else { toast('封禁失败: '+(r.error||''),'err'); }
+    closeModal(); go('incident');
+  }catch(e){ toast(e.message,'err'); }
+};
+window.incTrans = async (id,to)=>{
+  try{ await api('/incidents/'+id+'/transition',{method:'POST',body:{to_status:to}});
+    closeModal(); toast('已更新','ok'); go('incident'); }catch(e){ toast(e.message,'err'); }
+};
+
+PAGES.duty = async (c)=>{
+  const shifts = await api('/duty/shifts');
+  const tasks = await api('/tasks');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">值班与任务 · 直接操作看效果</div>
+    <div class="body">点 <b>+ 排班</b> 新增值班；点 <b>+ 任务</b> 新增任务；任务可点 <b>完成</b>。操作后列表立即刷新，行距已放宽。</div></div>
+  <div class="toolbar" style="gap:14px;flex-wrap:wrap"><button class="btn" data-act="dutyModal">+ 排班</button>
+    <button class="btn ghost" data-act="taskModal">+ 任务</button><button class="btn ghost" data-act="go" data-a1="duty">刷新</button></div>
+  <div class="panel"><div class="panel-h"><h3>值班表</h3></div><div class="panel-b" style="padding:0;overflow:auto">
+    ${shifts.length?`<table><thead><tr><th style="min-width:130px">日期</th><th>班次</th><th style="min-width:120px">主值班</th><th style="min-width:120px">备值班</th></tr></thead><tbody>
+    ${shifts.map(s=>`<tr><td class="mono">${esc(s.duty_date)}</td><td>${esc(s.shift)}</td><td>${esc(s.primary_user)}</td><td>${esc(s.backup_user||'-')}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty" style="padding:34px 28px;line-height:2.15">暂无排班。点「+ 排班」创建一条值班记录查看效果。</div>'}
+  </div></div>
+  <div class="panel"><div class="panel-h"><h3>任务</h3></div><div class="panel-b" style="padding:0;overflow:auto">
+    ${tasks.length?`<table><thead><tr><th style="min-width:240px">标题</th><th style="min-width:120px">负责人</th><th>优先级</th><th>状态</th><th style="min-width:110px">操作</th></tr></thead><tbody>
+    ${tasks.map(t=>`<tr><td style="line-height:2.05"><b>${esc(t.title)}</b></td><td>${esc(t.assignee)}</td><td>${priBadge(t.priority)}</td>
+      <td>${esc(t.status)}</td><td>${t.status==='open'?`<button class="btn sm ghost" data-act="taskDone" data-a1="${esc(t.id)}">完成</button>`:'<span class="muted">-</span>'}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty" style="padding:34px 28px;line-height:2.15">暂无任务。点「+ 任务」创建后可点「完成」查看效果。</div>'}
+  </div></div>`;
+};
+window.dutyModal = ()=>openModal('排班',`
+  <div class="field"><label>日期</label><input id="d_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <div class="field"><label>班次</label><select id="d_shift"><option>day</option><option>night</option></select></div>
+  <div class="field"><label>主值班</label><input id="d_pri" value="admin"></div>
+  <div class="field"><label>备值班</label><input id="d_bak"></div>`,
+  `<button class="btn ghost" data-act="closeModal">取消</button><button class="btn" data-act="saveDuty">保存</button>`);
+window.saveDuty = async ()=>{ try{ await api('/duty/shifts',{method:'POST',body:{duty_date:gv('d_date'),
+  shift:gv('d_shift'),primary_user:gv('d_pri'),backup_user:gv('d_bak')}}); closeModal(); toast('已排班','ok'); go('duty');
+  }catch(e){ toast(e.message,'err'); } };
+window.taskModal = ()=>openModal('新建任务',`
+  <div class="field"><label>标题</label><input id="t_title"></div>
+  <div class="field"><label>负责人</label><input id="t_asg"></div>
+  <div class="field"><label>优先级</label><select id="t_pri"><option>P1</option><option>P2</option><option selected>P3</option><option>P4</option></select></div>`,
+  `<button class="btn ghost" data-act="closeModal">取消</button><button class="btn" data-act="saveTask">保存</button>`);
+window.saveTask = async ()=>{ try{ await api('/tasks',{method:'POST',body:{title:gv('t_title'),
+  assignee:gv('t_asg'),priority:gv('t_pri')}}); closeModal(); toast('已创建','ok'); go('duty');
+  }catch(e){ toast(e.message,'err'); } };
+window.taskDone = async (id)=>{ try{ await api('/tasks/'+id+'/transition',{method:'POST',body:{to_status:'done'}});
+  toast('已完成','ok'); go('duty'); }catch(e){ toast(e.message,'err'); } };
+
+PAGES.reports = async (c)=>{
+  const r = await api('/reports/preview?period=weekly');
+  const s = r.summary;
+  c.innerHTML = `
+  <div class="toolbar"><button class="btn ghost" data-act="exportReport">导出 CSV</button>
+    <span class="muted">统计周期 ${esc(s.period)} · 起始 ${esc(s.since)}</span></div>
+  <div class="cards">
+    <div class="card"><div class="k">资产存量</div><div class="v">${esc(s.assets_total)}</div></div>
+    <div class="card"><div class="k">新增漏洞</div><div class="v warn">${esc(s.vulns_opened)}</div></div>
+    <div class="card"><div class="k">已修复</div><div class="v ok">${esc(s.vulns_fixed)}</div></div>
+    <div class="card"><div class="k">告警总数</div><div class="v">${esc(s.alerts_total)}</div></div>
+    <div class="card"><div class="k">真实告警</div><div class="v danger">${esc(s.alerts_true)}</div></div>
+    <div class="card"><div class="k">事件闭环</div><div class="v ok">${esc(s.incidents_closed)}/${esc(s.incidents_total)}</div></div>
+  </div>
+  <div class="panel"><div class="panel-h"><h3>SLA 达成（按严重级）</h3></div><div class="panel-b">
+    <table><thead><tr><th>严重级</th><th>总数</th><th>已修复</th><th>达成率</th></tr></thead><tbody>
+    ${r.sla.map(x=>`<tr><td>${sevBadge(x.severity)}</td><td>${esc(x.total)}</td><td>${esc(x.fixed)}</td>
+      <td>${x.total?Math.round(x.fixed*100/x.total):0}%</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+};
+window.exportReport = ()=>{ window.open(API+'/reports/export?period=weekly'); };
+
+PAGES.audit = async (c)=>{
+  const v = await api('/audit/verify');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">审计日志 · 直接看效果</div>
+    <div class="body">审计为只增记录。你在登录、告警研判、生成日志、网络操作等动作后刷新本页，可看到新记录；哈希链状态显示完整性。</div></div>
+  <div class="panel" style="border-left:4px solid ${v.ok?'var(--ok)':'var(--danger)'};margin-bottom:22px">
+    <div class="panel-b" style="padding:22px 24px;line-height:1.8">
+      <b>审计哈希链</b> ${v.ok?'<span class="badge b-ok">完整</span>':'<span class="badge b-danger">已损坏</span>'}
+      <div class="muted" style="margin-top:12px">共 ${esc(v.rows)} 条 · ${esc(v.detail||'')}</div>
+      <div class="muted mono" style="margin-top:8px;word-break:break-all">锚点摘要 ${(v.anchor&&v.anchor.anchor_digest)||'-'}</div>
+    </div></div>
+  <div class="panel"><div class="panel-h"><h3>审计记录（只增）· ${esc(v.rows)} 条</h3><button class="btn sm ghost" data-act="go" data-a1="audit">刷新</button></div><div class="panel-b" id="auditBox" style="padding:0"></div></div>`;
+  const ab = document.getElementById('auditBox');
+  if(!ab) return;
+  const vs = window.makeVS({
+    rowH:140, maxH:'82vh',
+    cols:[70,220,150,180,220,340],
+    head:['seq','时间','操作人','动作','对象','payload_hash'],
+    fetchPage:function(cursor){ return api('/audit?limit=200&page='+(Math.floor(cursor/200)+1)).then(function(d){ var r=d.items||[]; return {rows:r, atEnd:r.length<200}; }); },
+    onRender:function(x){ return [
+      '<span class="mono vs-cell" style="font-size:15px">'+esc(x.seq)+'</span>',
+      '<span class="mono vs-cell" style="font-size:14px" title="'+esc(x.ts)+'">'+esc(x.ts||'-')+'</span>',
+      '<span class="vs-cell" style="font-size:14px" title="'+esc(x.actor||'-')+'">'+esc(x.actor||'-')+'</span>',
+      '<span class="vs-cell" style="font-size:14px" title="'+esc(x.action)+'">'+esc(x.action||'-')+'</span>',
+      '<span class="vs-msg" style="font-size:14px" title="'+esc((x.target_type||'')+(x.target_id?':'+x.target_id:''))+'">'+esc((x.target_type||'-')+(x.target_id?':'+x.target_id:''))+'</span>',
+      '<span class="mono muted vs-msg" style="font-size:13px" title="'+esc(x.payload_hash||'')+'">'+esc(x.payload_hash||'-')+'</span>'
+    ]; }
+  });
+  ab.appendChild(vs);
+  vs._loadMore();
+};
+
+PAGES.notify = async (c)=>{
+  const ch = await api('/notify/channels');
+  const logs = await api('/notify/logs');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">通知渠道 · 直接操作看效果</div>
+    <div class="body">① 点 <b>+ 通知渠道</b> 添加一个 Webhook；② 点 <b>测试发送</b> 真实 POST 到该 URL（成功/失败都会写入发送日志）；③ 下方日志可确认送达是否真实有效。</div>
+    <div class="actions"><button class="btn" data-act="chModal">+ 通知渠道</button></div></div>
+  <div class="panel"><div class="panel-h"><h3>渠道</h3><button class="btn sm ghost" data-act="go" data-a1="notify">刷新</button></div><div class="panel-b" style="padding:0">
+    ${ch.length?`<table><thead><tr><th style="min-width:180px">名称</th><th style="min-width:120px">类型</th><th style="min-width:80px">启用</th><th style="min-width:140px">操作</th></tr></thead><tbody>
+    ${ch.map(x=>`<tr>
+      <td style="line-height:2.1">${esc(x.name)}</td>
+      <td style="line-height:2.1">${esc(x.channel_type)}</td>
+      <td style="line-height:2.1">${x.enabled?'<span class="badge b-ok">是</span>':'<span class="badge b-gray">否</span>'}</td>
+      <td style="white-space:normal;line-height:2.2"><button class="btn sm ghost" data-act="testCh" data-a1="${esc(x.id)}">测试发送</button></td>
+    </tr>`).join('')}
+    </tbody></table>`:'<div class="empty" style="padding:38px 28px;line-height:2.2">暂无渠道。点「+ 通知渠道」添加一个 Webhook（如 http://127.0.0.1:PORT/ 或任意可接收 POST 的地址）。</div>'}
+  </div></div>
+  <div class="panel"><div class="panel-h"><h3>发送日志（验证真实有效）</h3></div><div class="panel-b" style="padding:0">
+    ${logs.length?`<table><thead><tr><th style="min-width:170px">时间</th><th style="min-width:180px">主题</th><th style="min-width:90px">结果</th><th style="min-width:120px">耗时</th><th style="min-width:220px">错误</th></tr></thead><tbody>
+    ${logs.map(l=>`<tr>
+      <td class="mono" style="line-height:2.1">${esc(l.created_at)}</td>
+      <td style="line-height:2.1">${esc(l.subject||'')}</td>
+      <td style="line-height:2.1">${l.result==='success'?'<span class="badge b-ok">成功</span>':'<span class="badge b-danger">失败</span>'}</td>
+      <td style="line-height:2.1">${esc(l.elapsed_ms||'-')}ms</td>
+      <td class="muted" style="line-height:2.1;word-break:break-all">${esc(l.error||'')}</td>
+    </tr>`).join('')}
+    </tbody></table>`:'<div class="empty" style="padding:38px 28px;line-height:2.2">暂无发送记录。添加渠道后点「测试发送」即可看到真实送达结果。</div>'}
+  </div></div>`;
+};
+window.chModal = function(){
+  openModal('添加通知渠道',
+    `<div class="field" style="margin-bottom:18px"><label>名称</label><input id="chName" value="测试 Webhook"></div>
+    <div class="field" style="margin-bottom:18px"><label>类型</label>
+      <select id="chType" style="width:100%">
+        <option value="webhook">Webhook（POST JSON）</option>
+        <option value="email">Email（待实现）</option>
+      </select></div>
+    <div class="field" style="margin-bottom:18px"><label>Webhook URL</label>
+      <input id="chUrl" placeholder="https://example.com/webhook 或 http://127.0.0.1:PORT/" style="width:100%"></div>`,
+    `<button class="btn ghost" data-act="closeModal">取消</button>
+     <button class="btn" data-act="saveCh">保存</button>`);
+};
+window.saveCh = async ()=>{
+  const name = document.getElementById('chName').value.trim();
+  const type = document.getElementById('chType').value;
+  const url = document.getElementById('chUrl').value.trim();
+  if(!name || !url){ toast('请填写名称和 URL','err'); return; }
+  try{
+    const r = await api('/notify/channels',{method:'POST',body:{name,channel_type:type,config:{url},enabled:true}});
+    toast('渠道已添加','ok');
+    closeModal();
+    if(window.go) window.go('notify');
+  }catch(e){ toast('添加失败: '+e.message,'err'); }
+};
+window.testCh = async (id)=>{
+  try{
+    const r = await api('/notify/test',{method:'POST',body:{channel_id:id}});
+    if(r.ok){ toast('测试发送成功 ✓','ok'); }else{ toast('测试发送失败: '+(r.error||'未知'),'err'); }
+    if(window.go) window.go('notify');
+  }catch(e){ toast('测试失败: '+e.message,'err'); }
+};
+window.chModal = ()=>openModal('新增通知渠道',`
+  <div class="field"><label>名称</label><input id="n_name" value="测试WebHook"></div>
+  <div class="field"><label>类型</label><select id="n_type"><option>webhook</option></select></div>
+  <div class="field"><label>Webhook URL</label><input id="n_url" placeholder="https://..."></div>`,
+  `<button class="btn ghost" data-act="closeModal">取消</button><button class="btn" data-act="saveCh">保存</button>`);
+window.saveCh = async ()=>{ try{ await api('/notify/channels',{method:'POST',body:{name:gv('n_name'),
+  channel_type:gv('n_type'),config:{url:gv('n_url')}}}); closeModal(); toast('已创建','ok'); go('notify');
+  }catch(e){ toast(e.message,'err'); } };
+window.testCh = async (id)=>{ try{ const r = await api('/notify/test',{method:'POST',body:{channel_id:id}});
+  toast(r.ok?'发送成功':'发送失败: '+(r.error||''), r.ok?'ok':'err'); go('notify');
+  }catch(e){ toast(e.message,'err'); } };
+
+PAGES.settings = async (c)=>{
+  const h = await api('/health');
+  c.innerHTML = `
+  <div class="info-card"><div class="title">系统设置 · 直接操作看效果</div>
+    <div class="body">可查看系统状态、管理员权限、审计链完整性；下方可直接修改登录口令。信息区行距已放宽。</div></div>
+  <div class="panel"><div class="panel-h"><h3>系统信息</h3><button class="btn sm ghost" data-act="go" data-a1="settings">刷新</button></div><div class="panel-b" style="padding:22px 24px">
+    <div class="kv" style="line-height:1.8;gap:16px 22px">
+      <div class="key">产品</div><div>${esc(h.app)}</div>
+      <div class="key">版本</div><div>${esc(h.version)}</div>
+      <div class="key">部署形态</div><div>${h.mode==='standalone'?'单机便携版':'团队模式'}</div>
+      <div class="key">数据表</div><div>${esc(h.tables)} 张</div>
+      <div class="key">管理员权限</div><div>${h.admin?'<span class="badge b-ok">是</span>':'<span class="badge b-warn">否（改 IP/高危操作受限）</span>'}</div>
+      <div class="key">安全日志</div><div>${h.eventlog&&h.eventlog.security_readable?'<span class="badge b-ok">可读</span>':'<span class="badge b-gray">需提权/不可读</span>'}</div>
+      <div class="key">审计链</div><div>${h.audit&&h.audit.ok?'<span class="badge b-ok">完整</span>':'<span class="badge b-danger">损坏/未知</span>'} ${esc(h.audit&&h.audit.rows||0)} 条</div>
+    </div></div></div>
+  <div class="panel"><div class="panel-h"><h3>修改口令</h3></div><div class="panel-b" style="padding:22px 24px;max-width:520px">
+    <div class="field" style="margin-bottom:22px"><label>原口令</label><input id="pw_old" type="password" placeholder="输入当前口令"></div>
+    <div class="field" style="margin-bottom:20px"><label>新口令（≥8位）</label><input id="pw_new" type="password" placeholder="输入新口令"></div>
+    <button class="btn" data-act="changePwd">提交修改</button>
+    <div class="muted" style="margin-top:10px;line-height:2.0">修改成功后当前会话可能受影响，按需重新登录。</div>
+  </div></div>`;
+};
+window.changePwd = async ()=>{ try{ await api('/auth/change-password',{method:'POST',
+  body:{old_password:gv('pw_old'),new_password:gv('pw_new')}}); toast('口令已修改','ok');
+  }catch(e){ toast(e.message,'err'); } };
+
+// ================== 防护中心 · Guard Core V3.0 ==================
+// 一个页面六个视图：概览 / 事件 / 规则 / 策略 / 白名单 / 响应与对账
+let GUARD_TAB = 'overview';
+const GFLT = { sev:'', status:'', category:'', q:'', page:1 };
+const GTABS = [['overview','概览','◎'],['events','事件','⚑'],['rules','规则','☰'],
+               ['policy','策略','⚙'],['whitelist','白名单','☑'],['responses','响应与对账','⇄']];
+const GMODE = {monitor:['b-gray','观察'],alert:['b-warn','告警'],block:['b-danger','阻断']};
+const GSTAT = {new:['b-warn','待处理'],ack:['b-info','已确认'],closed:['b-ok','已关闭'],
+               false_positive:['b-gray','误报'],escalated:['b-danger','已升级']};
+const GACT  = {block_ip:'阻断 IP',block_program:'阻断程序出站',block_port:'阻断端口',kill_process:'结束进程'};
+const GERR  = {MODE_MONITOR:'当前是观察档，先到策略切到阻断档',MODE_ALERT:'当前是告警档，先到策略切到阻断档',
+  INTERNAL_IP:'目标是内网地址，按设计一律拒绝处置',WHITELISTED:'命中白名单，先到白名单里核对',
+  PROTECTED:'系统关键进程，不动',SELF_PROTECTED:'这是本程序自身，不动',PROTECTED_PORT:'基础服务端口（53/80/443），不动',
+  ELEVATION_REQUIRED:'需要以管理员身份重启本程序',RATE_LIMITED:'超过每分钟动作上限，稍后再试',
+  UNKNOWN_ACTION:'未知动作'};
+const GCAT  = {process:'进程',conn:'外联',listen:'监听',persist:'持久化',posture:'主机姿态',log:'日志',chain:'攻击链'};
+
+function gModeBadge(m){ const x=GMODE[m]||['b-gray',m||'-']; return '<span class="badge '+x[0]+'">'+x[1]+'</span>'; }
+// 进程创建事件源（WMI）：轮询 8 秒看不到的短命进程靠它抓，粒度 1 秒
+function gWatchBadge(w){
+  if(!w) return '';
+  if(w.running) return '<span class="badge b-ok" title="WMI 进程创建事件源：1 秒粒度，补上两次轮询之间生灭的短命进程；已捕获 '+esc(w.seen||0)+' 个进程创建">事件源 1s · 已捕 '+(w.seen||0)+'</span>';
+  if(w.available && w.available.ok) return '<span class="badge b-gray" title="事件源未启动（引擎停止时会一起停）">事件源未启动</span>';
+  return '<span class="badge b-warn" title="找不到 PowerShell，短命进程只能靠 8 秒轮询">事件源不可用</span>';
+}
+function gStatBadge(s){ const x=GSTAT[s]||['b-gray',s||'-']; return '<span class="badge '+x[0]+'">'+x[1]+'</span>'; }
+function gchk(id){ const e=document.getElementById(id); return !!(e && e.checked); }
+function gnum(id,d){ const v=gv(id); const n=parseInt(v,10); return isNaN(n)?d:n; }
+function gopt(list,cur){ return list.map(function(k){ return '<option value="'+esc(k)+'"'+(String(cur)===String(k)?' selected':'')+'>'+esc(k)+'</option>'; }).join(''); }
+
+// 合成样本：规则自测用，按类别给最小可命中对象
+const GSAMPLE = {
+  process: {name:'powershell.exe', path:'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+            cmdline:'powershell.exe -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA',
+            pid:1234, ppid:600, user:'SYSTEM'},
+  conn:    {remote_ip:'198.51.100.9', remote_port:4444, local_ip:'192.168.0.79', local_port:51234,
+            process_name:'svchost.exe', process_path:'C:\\Windows\\System32\\svchost.exe', state:'ESTABLISHED'},
+  listen:  {local_ip:'0.0.0.0', local_port:3306, process_name:'mysqld.exe', pid:2468},
+  persist: {name:'updater.exe', path:'C:\\Users\\Public\\updater.exe', source:'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+            command:'C:\\Users\\Public\\updater.exe -silent', kind:'registry'},
+  posture: {firewall_profiles:{Domain:false,Private:false,Public:false}, defender_realtime:false,
+            defender_enabled:false, smb1:false, rdp_deny:'0'},
+  log:     {log_name:'Security', event_id:4625, message:'An account failed to log on. 4625', host:'WS01'}
+};
+
+PAGES.guard = async (c)=>{
+  const st = await api('/guard/status');
+  const e = st.engine || {}, pol = st.policy || {}, td = st.today || {};
+  const rate = e.rate || st.rates || {};
+  const head = '<div class="info-card"><div class="title">主机主动防护引擎 · 采集 → 判定 → 处置 → 联动</div>'
+    + '<div class="body">当前档位 ' + gModeBadge(pol.mode)
+    + (e.running ? ' <span class="badge b-ok">引擎运行中</span>' : ' <span class="badge b-gray">引擎已停止</span>')
+    + (st.admin ? ' <span class="badge b-ok">已提权 · 可下发阻断</span>'
+                : ' <span class="badge b-warn">未提权 · 只能检测与告警</span>')
+    + gWatchBadge(e.watch)
+    + '<br>观察档只记录；告警档写告警台；阻断档才真正写防火墙/结束进程，每个动作都可回滚、受限速与白名单约束。</div></div>';
+
+  const bar = '<div class="toolbar" style="gap:12px;flex-wrap:wrap">'
+    + '<button class="btn" data-act="guardRun" data-a1="0">立即扫描</button>'
+    + '<button class="btn ghost" data-act="guardRun" data-a1="1">深度扫描</button>'
+    + (e.running ? '<button class="btn danger" data-act="guardStop">停止引擎</button>'
+                 : '<button class="btn" data-act="guardStart">启动引擎</button>')
+    + '<button class="btn ghost" data-act="go" data-a1="alerts">去告警研判</button>'
+    + '<button class="btn ghost" data-act="go" data-a1="incident">去应急响应</button>'
+    + '<button class="btn ghost" data-act="guardExport">导出 CSV</button>'
+    + '<span class="muted">轮次 ' + esc(e.rounds || 0) + ' · 上次 ' + esc(e.last_run || '—')
+    + ' · 间隔 ' + esc(pol.interval_sec || 8) + 's · 本分钟动作 ' + esc(rate.used || 0) + '/' + esc(rate.limit || 12)
+    + '</span></div>';
+
+  const tabs = '<div class="toolbar" style="gap:10px;flex-wrap:wrap;padding:4px 0 0">'
+    + GTABS.map(function(t){
+        return '<button class="btn ' + (GUARD_TAB === t[0] ? '' : 'ghost') + ' sm" data-act="guardTab" data-a1="'
+          + t[0] + '">' + t[2] + ' ' + t[1] + '</button>';
+      }).join('') + '</div>';
+
+  let body = '';
+  if(GUARD_TAB === 'events')         body = await guardViewEvents();
+  else if(GUARD_TAB === 'rules')     body = await guardViewRules();
+  else if(GUARD_TAB === 'policy')    body = await guardViewPolicy(Object.assign({}, pol, {admin: st.admin}));
+  else if(GUARD_TAB === 'whitelist') body = await guardViewWhitelist();
+  else if(GUARD_TAB === 'responses') body = await guardViewResponses();
+  else                               body = await guardViewOverview(st);
+
+  c.innerHTML = head + bar + tabs + body;
+};
+
+async function guardViewOverview(st){
+  const td = st.today || {}, sev = td.by_severity || {}, total = td.events || 0;
+  const card = function(k, v, tip){
+    return '<div class="card" style="padding:22px 24px"><div class="k" style="margin-bottom:12px">' + esc(k)
+      + '</div><div class="v">' + esc(v) + '</div>'
+      + (tip ? '<div class="muted" style="margin-top:12px;line-height:1.9;font-size:13px">' + esc(tip) + '</div>' : '')
+      + '</div>';
+  };
+  const cols = {critical:'#c0392b', high:'#e07b39', medium:'#d4a017', low:'#95a5a6'};
+  const dist = ['critical','high','medium','low'].map(function(s){
+    const n = sev[s] || 0, pct = total ? Math.round(n * 100 / total) : 0;
+    return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'
+      + '<span style="width:78px">' + sevBadge(s) + '</span>'
+      + '<div style="flex:1;background:#eef2f8;border-radius:6px;height:12px;overflow:hidden">'
+      + '<div style="width:' + pct + '%;height:100%;background:' + cols[s] + '"></div></div>'
+      + '<b style="width:54px;text-align:right">' + n + '</b></div>';
+  }).join('');
+
+  const ev = await api('/guard/events?size=8');
+  const rows = ev.items.length ? ev.items.map(function(x){
+    return '<tr><td class="mono" style="white-space:nowrap">' + esc(x.ts) + '</td>'
+      + '<td><b>' + esc(x.rule_name) + '</b></td><td>' + sevBadge(x.severity) + '</td>'
+      + '<td class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(x.subject || '-') + '</td>'
+      + '<td>' + gStatBadge(x.status) + '</td>'
+      + '<td><button class="btn sm ghost" data-act="guardEvDetail" data-a1="' + x.id + '">详情</button></td></tr>';
+  }).join('') : '<tr><td colspan="6"><div class="empty" style="padding:34px;line-height:2.1">'
+    + '还没有防护事件。点上方「立即扫描」跑一轮，或把策略切到「告警」档再扫描。</div></td></tr>';
+
+  const top = (st.top_rules || []).map(function(r){
+    return '<tr><td><b>' + esc(r.rule_name) + '</b></td><td>' + sevBadge(r.severity) + '</td>'
+      + '<td><b>' + esc(r.n) + '</b></td><td class="mono">' + esc(r.last_ts || '-') + '</td></tr>';
+  }).join('');
+
+  return assessCard(st.assessment, {hideEmpty: false})
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:16px;margin:16px 0">'
+    + card('今日事件', td.events || 0, '当天命中总数')
+    + card('待研判告警', td.pending_alerts || 0, '已自动写入告警台')
+    + card('开启事件单', td.open_incidents || 0, 'high 及以上自动开单')
+    + card('当前封禁 IP', td.blocked_ips || 0, '与封禁台账同源')
+    + '</div>'
+    + '<div class="panel"><div class="panel-h"><h3>今日严重度分布</h3></div>'
+    + '<div class="panel-b" style="padding:22px 24px">' + (dist || '<div class="muted">暂无数据</div>') + '</div></div>'
+    + '<div class="panel"><div class="panel-h"><h3>命中 Top 规则</h3></div><div class="panel-b" style="padding:0;overflow:auto">'
+    + '<table><thead><tr><th>规则</th><th>级别</th><th>命中</th><th>最近</th></tr></thead><tbody>'
+    + (top || '<tr><td colspan="4"><div class="empty" style="padding:30px">暂无命中</div></td></tr>')
+    + '</tbody></table></div></div>'
+    + '<div class="panel"><div class="panel-h"><h3>最近防护事件</h3>'
+    + '<button class="btn sm ghost" data-act="guardTab" data-a1="events">查看全部</button></div>'
+    + '<div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th>时间</th>'
+    + '<th style="min-width:200px">规则</th><th>级别</th><th style="min-width:220px">对象</th>'
+    + '<th>状态</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+}
+
+async function guardViewEvents(){
+  const qs = '?sev=' + encodeURIComponent(GFLT.sev) + '&status=' + encodeURIComponent(GFLT.status)
+    + '&category=' + encodeURIComponent(GFLT.category) + '&q=' + encodeURIComponent(GFLT.q)
+    + '&page=' + GFLT.page + '&size=20';
+  const d = await api('/guard/events' + qs);
+  const size = 20, pages = Math.max(1, Math.ceil((d.total || 0) / size));
+  const rows = d.items.length ? d.items.map(function(x){
+    const resp = (x.responses || []).length
+      ? (x.responses || []).map(function(r){
+          return '<span class="badge ' + (r.applied ? 'b-danger' : 'b-gray') + '">'
+            + esc(GACT[r.action] || r.action) + (r.reverted ? ' · 已回滚' : '') + '</span>';
+        }).join(' ')
+      : '<span class="muted">—</span>';
+    return '<tr><td class="mono" style="white-space:nowrap">' + esc(x.ts) + '</td>'
+      + '<td><b>' + esc(x.rule_name) + '</b>'
+      + (x.mitre ? ' <span class="badge b-gray" style="margin-left:4px">' + esc(x.mitre) + '</span>' : '')
+      + '<div class="muted g-detail" title="'
+      + esc((x.detail || '').slice(0, 500)) + '">'
+      + esc((x.detail || '').slice(0, 160)) + '</div></td>'
+      + '<td><span class="badge ' + (x.category === 'chain' ? 'b-danger' : 'b-info') + '">'
+      + esc(GCAT[x.category] || x.category || '-') + '</span></td>'
+      + '<td>' + sevBadge(x.severity) + '</td>'
+      + '<td class="mono" style="white-space:pre-wrap;word-break:break-word;max-width:280px">' + esc(x.subject || '-') + '</td>'
+      + '<td>' + gStatBadge(x.status) + '</td><td>' + resp + '</td>'
+      + '<td style="white-space:nowrap;width:112px">'
+      + '<button class="btn sm ghost" style="padding:2px 8px" data-act="guardEvDetail" data-a1="'
+      + x.id + '">研判</button> '
+      + '<button class="btn sm ghost" style="padding:2px 8px" data-act="guardEvDel" data-a1="'
+      + x.id + '">删除</button></td></tr>';
+  }).join('') : '<tr><td colspan="8"><div class="empty" style="padding:40px;line-height:2.2">'
+    + '没有符合条件的防护事件。<br>点上方「立即扫描」，或放宽筛选条件。</div></td></tr>';
+
+  return '<div class="toolbar" style="gap:12px;flex-wrap:wrap">'
+    + '<select id="gFSev" style="min-width:130px"><option value="">全部级别</option>'
+    + gopt(['critical','high','medium','low'], GFLT.sev) + '</select>'
+    + '<select id="gFStat" style="min-width:130px"><option value="">全部状态</option>'
+    + gopt(['new','ack','escalated','closed','false_positive'], GFLT.status) + '</select>'
+    + '<select id="gFCat" style="min-width:130px"><option value="">全部类别</option>'
+    + gopt(['process','conn','listen','persist','posture','log','chain'], GFLT.category) + '</select>'
+    + '<input id="gFQ" placeholder="搜索规则/对象/详情/IP" style="min-width:220px;flex:1" value="' + esc(GFLT.q) + '" data-enter="guardFilterGo">'
+    + '<button class="btn" data-act="guardFilterGo">筛选</button>'
+    + '<button class="btn ghost" data-act="guardFilterReset">重置</button>'
+    + '<span class="muted">共 ' + esc(d.total || 0) + ' 条 · 第 ' + esc(GFLT.page) + '/' + esc(pages) + ' 页</span>'
+    + '<button class="btn sm ghost" data-act="guardPage" data-a1="-1">上一页</button>'
+    + '<button class="btn sm ghost" data-act="guardPage" data-a1="1">下一页</button></div>'
+    + '<div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table style="min-width:1180px"><thead><tr>'
+    + '<th style="min-width:150px">时间</th><th style="min-width:300px">规则 / 详情 / ATT&CK</th><th>类别</th>'
+    + '<th>级别</th><th style="min-width:200px">对象</th><th>状态</th>'
+    + '<th style="min-width:140px">处置</th><th style="width:112px">操作</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>'
+    + '<div class="toolbar" style="margin-top:10px;gap:10px;align-items:center">'
+    + '<span class="muted">清理列表（审计与处置留痕一律保留）：</span>'
+    + '<button class="btn sm ghost" data-act="guardEvPurge" data-a1="closed">删除已关闭</button>'
+    + '<button class="btn sm ghost" data-act="guardEvPurge" data-a1="false_positive">删除误报</button>'
+    + '<button class="btn sm ghost" data-act="guardEvPurge" data-a1="all">清空全部</button></div>';
+}
+
+async function guardViewRules(){
+  const d = await api('/guard/rules');
+  const on = (d.items || []).filter(function(r){ return r.enabled; }).length;
+  const rows = (d.items || []).map(function(r){
+    const acts = r.category === 'chain'
+      ? '跨事件关联（' + (r.chain_req || '多战术') + '）'
+      : Object.keys(r.acts || {}).filter(function(k){ return r.acts[k]; })
+        .map(function(k){ return GACT[k === 'kill' ? 'kill_process' : k] || k; }).join('、') || '仅记录';
+    return '<tr><td class="mono" style="white-space:nowrap">' + esc(r.rule_id) + '</td>'
+      + '<td><b>' + esc(r.name) + '</b>' + (r.builtin ? '' : ' <span class="badge b-info">自定义</span>') + '</td>'
+      + '<td><span class="badge ' + (r.category === 'chain' ? 'b-danger' : 'b-info') + '">'
+      + esc(GCAT[r.category] || r.category) + '</span></td>'
+      + '<td>' + sevBadge(r.severity) + '</td>'
+      + '<td class="mono" style="white-space:nowrap">' + esc(r.technique || '-') + '</td>'
+      + '<td><b>' + esc(r.hits || 0) + '</b><div class="muted" style="margin-top:6px">' + esc(r.last_hit_at || '') + '</div></td>'
+      + '<td style="white-space:normal;line-height:2.0">' + esc(acts) + '</td>'
+      + '<td>' + (r.enabled ? '<span class="badge b-ok">启用</span>' : '<span class="badge b-gray">停用</span>') + '</td>'
+      + '<td style="white-space:normal;line-height:2.4;padding-top:10px;padding-bottom:10px">'
+      + '<button class="btn sm ghost" data-act="guardRuleToggle" data-a1="' + r.id + '" data-a2="' + (r.enabled ? '1' : '0') + '">'
+      + (r.enabled ? '停用' : '启用') + '</button> '
+      + '<button class="btn sm ghost" data-act="guardRuleTest" data-a1="' + r.id + '" data-a2="' + esc(r.category) + '">自测</button>'
+      + '</td></tr>';
+  }).join('');
+
+  return '<div class="info-card"><div class="body">规则是「条件 DSL + 动作意图」的组合：条件命中的对象才会进入响应层，'
+    + '响应层再按档位、阈值、白名单、限速、自保护逐层放行或拒绝。<b>自测</b>可以拿合成样本验证一条规则到底打不打得到，不依赖真实攻击行为。</div></div>'
+    + '<div class="toolbar"><span class="muted">共 ' + esc(d.total || 0) + ' 条规则 · 启用 ' + esc(on) + ' 条</span>'
+    + '<button class="btn sm ghost" data-act="go" data-a1="guard">刷新</button></div>'
+    + '<div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr>'
+    + '<th>规则 ID</th><th style="min-width:200px">名称</th><th>类别</th><th>级别</th><th>ATT&CK</th>'
+    + '<th>命中</th><th style="min-width:170px">动作</th><th>开关</th><th style="min-width:150px">操作</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="9"><div class="empty" style="padding:36px">无规则</div></td></tr>')
+    + '</tbody></table></div></div>';
+}
+
+async function guardViewPolicy(pol){
+  const p = pol || {};
+  const sw = function(id, label, on, tip){
+    return '<label style="display:flex;align-items:center;gap:10px;padding:10px 0;line-height:1.9">'
+      + '<input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + ' style="width:auto">'
+      + '<span>' + esc(label) + (tip ? '<span class="muted"> · ' + esc(tip) + '</span>' : '') + '</span></label>';
+  };
+  const field = function(id, label, val, tip){
+    return '<div class="field" style="margin-bottom:16px"><label>' + esc(label)
+      + '</label><input id="' + id + '" value="' + esc(val) + '" style="max-width:220px">'
+      + (tip ? '<div class="muted" style="margin-top:8px;line-height:1.8">' + esc(tip) + '</div>' : '') + '</div>';
+  };
+  const modes = ['monitor','alert','block'].map(function(m){
+    const act = p.mode === m;
+    const desc = {monitor:'只采集与记录，不动系统', alert:'额外写告警台、自动开事件单', block:'真正下发防火墙阻断/结束进程'}[m];
+    return '<button class="btn ' + (act ? '' : 'ghost') + '" data-act="guardSetMode" data-a1="' + m + '">'
+      + (act ? '✓ ' : '') + gModeBadge(m) + ' ' + esc(desc) + '</button>';
+  }).join(' ');
+
+  return '<div class="panel"><div class="panel-h"><h3>处置档位</h3><span class="muted">点一下即时生效</span></div>'
+    + '<div class="panel-b" style="padding:22px 24px;display:flex;gap:12px;flex-wrap:wrap">' + modes + '</div></div>'
+    + '<div class="panel"><div class="panel-h"><h3>引擎参数</h3></div><div class="panel-b" style="padding:22px 24px">'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0 28px">'
+    + field('gPInt','扫描间隔（秒，3–120）', p.interval_sec || 8, '越小越灵敏，主机越忙；慢速采集项自带缓存')
+    + field('gPScore','动作阈值（1–200）', p.score_threshold || 60, '事件评分低于该值不下发动作')
+    + field('gPRate','每分钟动作上限（1–120）', p.max_actions_per_min || 12, '防止误判时一次性阻断太多')
+    + field('gPExp','阻断自动过期（分钟，1–1440）', p.expire_minutes || 30, '到期自动解封，避免永久误封')
+    + '</div>'
+    + '<div style="margin-top:8px">'
+    + sw('gPBlockIp','自动阻断外部 IP', p.auto_block_ip, '只封外网地址，内网与保留段一律拒绝')
+    + sw('gPBlockProg','自动阻断程序出站', p.auto_block_program, '比重命名/删文件温和，可回滚')
+    + sw('gPKill','自动结束进程', p.auto_kill_process, '最后手段，受关键进程与自保护约束')
+    + sw('gPIncident','自动开事件单', p.auto_incident, 'high 及以上')
+    + sw('gPNotify','自动推送通知', p.auto_notify, '走通知中心已配渠道')
+    + sw('gPAuto','开机自动启动引擎', p.autostart, '随服务启动后立即进入守护')
+    + '</div>'
+    + '<button class="btn" data-act="guardPolicySave" style="margin-top:18px">保存策略</button>'
+    + '<div class="muted" style="margin-top:12px;line-height:1.9">'
+    + '当前进程' + (p.admin === false ? '未提权' : '') + '：未提权时阻断会被明确拒绝并留痕，不会半执行。</div>'
+    + '</div></div>';
+}
+
+async function guardViewWhitelist(){
+  const d = await api('/guard/whitelist');
+  const items = d.items || [];
+  const rows = items.map(function(w){
+    return '<tr><td><span class="badge b-info">' + esc(w.kind) + '</span></td>'
+      + '<td class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(w.value) + '</td>'
+      + '<td>' + esc(w.note || '-') + '</td>'
+      + '<td>' + (w.source === 'default' ? '<span class="badge b-gray">内置</span>' : '<span class="badge b-ok">自定义</span>') + '</td>'
+      + '<td>' + (w.source === 'default'
+          ? '<span class="muted">内置不可删</span>'
+          : '<button class="btn sm danger" data-act="guardWlDel" data-a1="' + w.id + '">删除</button>') + '</td></tr>';
+  }).join('');
+
+  return '<div class="info-card"><div class="body">白名单是「永远不动」的名单：进程名/路径、IP、端口。'
+    + '命中白名单的对象会被响应层直接放过，但仍会产生事件记录，方便你回头检查是不是被滥用。</div></div>'
+    + '<div class="toolbar" style="gap:12px;flex-wrap:wrap">'
+    + '<select id="gWKind" style="min-width:130px">' + gopt(['process','ip','port','domain'], 'process') + '</select>'
+    + '<input id="gWVal" placeholder="进程名/exe 全路径/IP/端口" style="min-width:260px;flex:1" data-enter="guardWlAdd">'
+    + '<input id="gWNote" placeholder="备注（可选）" style="min-width:180px">'
+    + '<button class="btn" data-act="guardWlAdd">加入白名单</button>'
+    + '<span class="muted">共 ' + esc(items.length) + ' 条</span></div>'
+    + '<div class="panel"><div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr>'
+    + '<th>类型</th><th style="min-width:280px">值</th><th style="min-width:160px">备注</th><th>来源</th><th>操作</th>'
+    + '</tr></thead><tbody>' + (rows || '<tr><td colspan="5"><div class="empty" style="padding:36px">暂无条目</div></td></tr>')
+    + '</tbody></table></div></div>';
+}
+
+async function guardViewResponses(){
+  const fw = await api('/guard/firewall');
+  const rs = await api('/guard/responses?limit=60');
+  const hostRows = (fw.host_rules || []).map(function(r){
+    return '<tr><td class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(r.DisplayName || '-') + '</td>'
+      + '<td>' + esc(r.Direction || '-') + '</td><td>' + esc(r.Action || '-') + '</td>'
+      + '<td>' + esc(r.Enabled === true || r.Enabled === 'True' ? '启用' : String(r.Enabled)) + '</td></tr>';
+  }).join('');
+  const respRows = (rs.items || []).map(function(r){
+    const canRevert = r.revert_action && r.applied && !r.reverted;
+    return '<tr><td class="mono" style="white-space:nowrap">' + esc(r.ts) + '</td>'
+      + '<td>' + esc(GACT[r.action] || r.action) + '</td>'
+      + '<td class="mono" style="white-space:pre-wrap;word-break:break-word;max-width:280px">' + esc(r.target) + '</td>'
+      + '<td>' + (r.applied ? '<span class="badge b-danger">已执行</span>' : '<span class="badge b-gray">未执行</span>') + '</td>'
+      + '<td class="muted" style="white-space:normal;line-height:1.9">' + esc((r.result || '').slice(0, 120)) + '</td>'
+      + '<td>' + (r.reverted ? '<span class="badge b-gray">已回滚</span>' : esc(r.expire_at || '—')) + '</td>'
+      + '<td>' + (canRevert ? '<button class="btn sm ghost" data-act="guardRevert" data-a1="' + r.id + '">回滚</button>'
+                            : '<span class="muted">—</span>') + '</td></tr>';
+  }).join('');
+
+  return '<div class="panel"><div class="panel-h"><h3>防火墙对账</h3>'
+    + '<span class="muted">系统上 ' + esc(fw.count || 0) + ' 条 BlueGuard-* 规则 · 孤儿 ' + esc((fw.orphan_rules || []).length) + ' 条</span></div>'
+    + '<div class="panel-b" style="padding:18px 24px">'
+    + '<div class="toolbar" style="gap:12px;flex-wrap:wrap;padding:0 0 12px">'
+    + '<button class="btn ghost" data-act="go" data-a1="guard">重新对账</button>'
+    + '<button class="btn ghost" data-act="guardFwPurge" data-a1="0">清理孤儿规则</button>'
+    + '<button class="btn danger" data-act="guardFwPurge" data-a1="1">清理全部引擎规则</button>'
+    + (fw.admin ? '<span class="badge b-ok">可操作防火墙</span>' : '<span class="badge b-warn">未提权，清理会被拒绝</span>')
+    + '</div>'
+    + '<div style="overflow:auto;max-height:280px"><table><thead><tr><th style="min-width:280px">规则名</th>'
+    + '<th>方向</th><th>动作</th><th>状态</th></tr></thead><tbody>'
+    + (hostRows || '<tr><td colspan="4"><div class="empty" style="padding:26px">系统上还没有本引擎创建的规则</div></td></tr>')
+    + '</tbody></table></div></div></div>'
+    + '<div class="panel"><div class="panel-h"><h3>响应记录（可回滚）</h3>'
+    + '<span class="muted">每个动作都有 revert_action，回滚即精确撤销</span></div>'
+    + '<div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th>时间</th><th>动作</th>'
+    + '<th style="min-width:240px">目标</th><th>结果</th><th style="min-width:180px">说明</th>'
+    + '<th>过期/回滚</th><th>操作</th></tr></thead><tbody>'
+    + (respRows || '<tr><td colspan="7"><div class="empty" style="padding:36px">暂无响应动作</div></td></tr>')
+    + '</tbody></table></div></div>';
+}
+
+// ---------- 动作函数 ----------
+window.guardTab = function(k){
+  GUARD_TAB = k || 'overview';
+  try{ if(history.replaceState) history.replaceState(null, '', '#guard?tab=' + GUARD_TAB); }catch(e){}
+  go('guard');
+};
+
+window.guardRun = async function(deep){
+  try{
+    const r = await api('/guard/run', {method:'POST', body:{deep: deep === '1'}});
+    toast('扫描完成：命中 ' + (r.hits || 0) + ' 条，' + (r.elapsed_ms || 0) + 'ms', 'ok');
+    go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+window.guardStart = async function(){
+  try{ const r = await api('/guard/start', {method:'POST'});
+    toast(r && r.already ? '引擎已在运行' : '引擎已启动', 'ok'); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+window.guardStop = async function(){
+  try{ await api('/guard/stop', {method:'POST'}); toast('引擎已停止', 'ok'); go('guard'); }
+  catch(e){ toast(e.message, 'err'); }
+};
+window.guardExport = function(){ window.open(API + '/guard/export?days=7', '_blank'); };
+
+window.guardFilterGo = function(){
+  GFLT.sev = gv('gFSev') || ''; GFLT.status = gv('gFStat') || '';
+  GFLT.category = gv('gFCat') || ''; GFLT.q = gv('gFQ') || ''; GFLT.page = 1;
+  go('guard');
+};
+window.guardFilterReset = function(){
+  GFLT.sev = ''; GFLT.status = ''; GFLT.category = ''; GFLT.q = ''; GFLT.page = 1; go('guard');
+};
+window.guardPage = function(d){
+  const n = GFLT.page + parseInt(d, 10);
+  if(n < 1){ return; }
+  GFLT.page = n; go('guard');
+};
+
+window.guardEvDetail = async function(id){
+  try{
+    const d = await api('/guard/events/' + id);
+    const ev = d.evidence && Object.keys(d.evidence).length ? JSON.stringify(d.evidence, null, 2) : '（无结构化证据）';
+    const link = [];
+    if(d.alert) link.push('已生成告警 #' + d.alert.id + '（' + (d.alert.triage || '-') + '）');
+    if(d.incident) link.push('已开事件单 #' + d.incident.id + '（' + (d.incident.priority || '') + '/' + (d.incident.status || '') + '）');
+    const resp = (d.responses || []).length ? (d.responses || []).map(function(r){
+      const canRevert = r.revert_action && r.applied && !r.reverted;
+      return '<tr><td>' + esc(GACT[r.action] || r.action) + '</td>'
+        + '<td class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(r.target) + '</td>'
+        + '<td>' + (r.applied ? '<span class="badge b-danger">已执行</span>' : '<span class="badge b-gray">未执行</span>') + '</td>'
+        + '<td class="muted" style="white-space:normal">' + esc(r.result || '') + '</td>'
+        + '<td>' + (canRevert ? '<button class="btn sm ghost" data-act="guardRevert" data-a1="' + r.id + '">回滚</button>' : '—') + '</td></tr>';
+    }).join('') : '<tr><td colspan="5"><div class="empty" style="padding:20px;line-height:2.0">'
+      + '本轮未下发动作（观察/告警档，或评分未达阈值，或被白名单/限速/权限拦下）</div></td></tr>';
+
+    const acts = [];
+    if(d.remote_ip) acts.push(['block_ip', '阻断 ' + d.remote_ip + ' 入站', 1]);
+    if(d.process_path && /^[A-Za-z]:[\\\/]/.test(d.process_path)) acts.push(['block_program', '阻断该程序出站', 1]);
+    if(d.local_port) acts.push(['block_port', '阻断本机端口 ' + d.local_port, 0]);
+    if(d.pid && Number(d.pid) > 4) acts.push(['kill_process', '结束进程 pid ' + d.pid, 1]);
+    const actBtns = acts.length ? acts.map(function(a){
+      return '<button class="btn sm ' + (a[2] ? 'danger' : 'ghost') + '" data-act="guardEvRespond" data-a1="'
+        + id + '" data-a2="' + a[0] + '">' + esc(a[1]) + '</button>';
+    }).join(' ') : '<span class="muted">这条事件没有可下发的动作（缺远端 IP / 进程路径 / 端口）。</span>';
+
+    const body = '<div class="kv" style="line-height:1.9;gap:14px 20px">'
+      + '<div class="key">规则</div><div><b>' + esc(d.rule_name) + '</b> <span class="mono muted">' + esc(d.rule_id || '') + '</span></div>'
+      + '<div class="key">时间</div><div class="mono">' + esc(d.ts) + '</div>'
+      + '<div class="key">类别/级别</div><div>' + esc(GCAT[d.category] || d.category) + ' · ' + sevBadge(d.severity) + '</div>'
+      + '<div class="key">对象</div><div class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(d.subject || '-') + '</div>'
+      + (d.remote_ip ? '<div class="key">远端</div><div class="mono">' + esc(d.remote_ip) + (d.remote_port ? ':' + esc(d.remote_port) : '') + '</div>' : '')
+      + (d.process_name ? '<div class="key">进程</div><div class="mono">' + esc(d.process_name) + ' (pid ' + esc(d.pid || '-') + ')</div>' : '')
+      + (d.process_path ? '<div class="key">路径</div><div class="mono" style="white-space:pre-wrap;word-break:break-word">' + esc(d.process_path) + '</div>' : '')
+      + '<div class="key">ATT&CK</div><div>' + esc(d.mitre || '-') + ' ' + esc(d.mitre_label || '') + '</div>'
+      + '<div class="key">状态</div><div>' + gStatBadge(d.status) + '</div>'
+      + '<div class="key">联动</div><div>' + esc(link.length ? link.join('；') : '无') + '</div>'
+      + '<div class="key">详情</div><div style="white-space:pre-wrap;line-height:2.0">' + esc(d.detail || '-') + '</div>'
+      + '</div>'
+      + '<div class="panel" style="margin-top:18px"><div class="panel-h"><h3>证据</h3></div>'
+      + '<div class="panel-b" style="padding:16px 20px"><pre class="mono" style="white-space:pre-wrap;word-break:break-word;font-size:12.5px;line-height:1.85;margin:0">' + esc(ev) + '</pre></div></div>'
+      + '<div class="panel" style="margin-top:14px"><div class="panel-h"><h3>人工处置</h3></div>'
+      + '<div class="panel-b" style="padding:14px 20px;line-height:2.1">'
+      + '<div class="muted" style="margin-bottom:10px">下发的动作会写系统防火墙并记入审计，成功后可回滚；'
+      + '受档位、白名单、内网地址、自保护与限速约束。</div>'
+      + actBtns + '</div></div>'
+      + '<div class="panel" style="margin-top:14px"><div class="panel-h"><h3>处置记录</h3></div>'
+      + '<div class="panel-b" style="padding:0;overflow:auto"><table><thead><tr><th>动作</th>'
+      + '<th style="min-width:220px">目标</th><th>是否执行</th><th style="min-width:180px">结果</th><th>回滚</th>'
+      + '</tr></thead><tbody>' + resp + '</tbody></table></div></div>';
+
+    const foot = '<button class="btn ghost" data-act="guardEvStatus" data-a1="' + id + '" data-a2="ack">标记确认</button>'
+      + '<button class="btn ghost" data-act="guardEvStatus" data-a1="' + id + '" data-a2="escalated">升级</button>'
+      + '<button class="btn ghost" data-act="guardEvStatus" data-a1="' + id + '" data-a2="false_positive">误报</button>'
+      + '<button class="btn" data-act="guardEvStatus" data-a1="' + id + '" data-a2="closed">关闭</button>'
+      + '<button class="btn ghost" data-act="guardEvDel" data-a1="' + id + '">删除</button>'
+      + '<button class="btn ghost" data-act="closeModal">退出</button>';
+    openModal('防护事件 #' + id + ' · ' + (d.rule_name || ''), body, foot);
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardEvRespond = async function(id, action){
+  const label = GACT[action] || action;
+  if(!confirm('确认下发「' + label + '」？\n\n这会写系统防火墙（结束进程则直接杀进程），并记入审计；成功后可在处置记录里回滚。')) return;
+  try{
+    const r = await api('/guard/events/' + id + '/respond', {method:'POST', body:{action: action}});
+    if(r.ok){
+      toast('已下发：' + label + ' → ' + String(r.target), 'ok');
+    }else{
+      toast(label + ' 未下发：' + (GERR[r.error] || r.error || '未知原因'), 'warn');
+    }
+    closeModal(); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardEvDel = async function(id){
+  if(!confirm('确认删除事件 #' + id + '？\n\n只删这条记录，处置留痕（含已下发的防火墙规则）会保留，仍可在「响应与对账」里回滚。删除动作本身会写审计。')) return;
+  try{
+    const r = await api('/guard/events/' + id, {method:'DELETE'});
+    toast('已删除 ' + (r.deleted || 1) + ' 条事件'
+      + (r.live_responses ? '（该事件还有 ' + r.live_responses + ' 个生效中的处置，去「响应与对账」可回滚）' : ''), 'ok');
+    closeModal(); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardEvPurge = async function(mode){
+  const label = mode === 'all' ? '全部事件' : (mode === 'closed' ? '所有已关闭的事件' : '所有标记为误报的事件');
+  const tip = mode === 'all'
+    ? '\n\n⚠ 这会清空整个事件列表。处置留痕和审计记录不受影响。'
+    : '\n\n处置留痕（含已下发的防火墙规则）会保留。';
+  if(!confirm('确认删除' + label + '？' + tip)) return;
+  try{
+    const r = await api('/guard/events/purge', {method:'POST', body:{mode: mode}});
+    toast(r.deleted ? ('已删除 ' + r.deleted + ' 条事件') : '没有符合条件的记录', r.deleted ? 'ok' : 'warn');
+    GFLT.page = 1; go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardEvStatus = async function(id, to){
+  try{
+    await api('/guard/events/' + id + '/status', {method:'POST', body:{status: to}});
+    toast('已更新为 ' + (GSTAT[to] ? GSTAT[to][1] : to), 'ok');
+    closeModal(); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardRuleToggle = async function(id, cur){
+  try{
+    await api('/guard/rules/' + id, {method:'PATCH', body:{enabled: cur !== '1'}});
+    toast(cur === '1' ? '规则已停用' : '规则已启用', 'ok'); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardRuleTest = async function(id, cat){
+  const sample = GSAMPLE[cat] || {};
+  const body = '<div class="muted" style="line-height:2.0;margin-bottom:12px">'
+    + '把一条合成对象喂给规则，看它到底打不打得到。改下面的 JSON 可以测边界条件（比如换进程名验证是否会误报）。</div>'
+    + '<textarea id="gTestSample" style="width:100%;height:220px;font-family:ui-monospace,Consolas,monospace;'
+    + 'font-size:13px;line-height:1.7;white-space:pre" spellcheck="false">' + esc(JSON.stringify(sample, null, 2)) + '</textarea>'
+    + '<div id="gTestOut" style="margin-top:14px"></div>';
+  const foot = '<button class="btn ghost" data-act="closeModal">关闭</button>'
+    + '<button class="btn" data-act="guardRuleTestRun" data-a1="' + id + '">运行自测</button>';
+  openModal('规则自测 #' + id, body, foot);
+};
+
+window.guardRuleTestRun = async function(id){
+  const raw = gv('gTestSample');
+  let sample;
+  try{ sample = JSON.parse(raw); }catch(e){ toast('样本不是合法 JSON：' + e.message, 'err'); return; }
+  try{
+    const r = await api('/guard/rules/' + id + '/test', {method:'POST', body:{sample: sample}});
+    const box = document.getElementById('gTestOut');
+    if(box){
+      box.innerHTML = r.hit
+        ? '<div class="badge b-ok">命中</div> <span class="muted">规则 ' + esc(r.rule) + ' 用这个样本可以打中</span>'
+        : '<div class="badge b-gray">未命中</div> <span class="muted">这个样本不满足 ' + esc(r.rule) + ' 的条件</span>';
+    }
+    toast(r.hit ? '命中' : '未命中', r.hit ? 'ok' : '');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardSetMode = async function(m){
+  try{
+    await api('/guard/policy', {method:'PUT', body:{mode: m}});
+    toast('已切到「' + (GMODE[m] ? GMODE[m][1] : m) + '」档', 'ok'); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardPolicySave = async function(){
+  const p = {
+    interval_sec: gnum('gPInt', 8), score_threshold: gnum('gPScore', 60),
+    max_actions_per_min: gnum('gPRate', 12), expire_minutes: gnum('gPExp', 30),
+    auto_block_ip: gchk('gPBlockIp'), auto_block_program: gchk('gPBlockProg'),
+    auto_kill_process: gchk('gPKill'), auto_incident: gchk('gPIncident'),
+    auto_notify: gchk('gPNotify'), autostart: gchk('gPAuto')
+  };
+  try{ await api('/guard/policy', {method:'PUT', body:p}); toast('策略已保存', 'ok'); go('guard'); }
+  catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardWlAdd = async function(){
+  const kind = gv('gWKind') || 'process', value = (gv('gWVal') || '').trim();
+  if(!value){ toast('请填写值', 'err'); return; }
+  try{
+    await api('/guard/whitelist', {method:'POST', body:{kind: kind, value: value, note: gv('gWNote') || ''}});
+    toast('已加入白名单', 'ok'); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+window.guardWlDel = async function(id){
+  try{ await api('/guard/whitelist/' + id, {method:'DELETE'}); toast('已删除', 'ok'); go('guard'); }
+  catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardRevert = async function(id){
+  try{
+    await api('/guard/responses/' + id + '/revert', {method:'POST'});
+    toast('已回滚', 'ok'); closeModal(); go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+window.guardFwPurge = async function(all){
+  const tip = all === '1' ? '这会删掉本引擎在系统防火墙上创建的全部规则（含仍在生效的阻断）。'
+                          : '只清理库里已无对应活动记录的孤儿规则。';
+  if(all === '1' && !confirm(tip + ' 确认继续？')){ return; }
+  try{
+    const r = await api('/guard/firewall/purge', {method:'POST', body:{all: all === '1'}});
+    toast('清理完成：删除 ' + (r.removed || 0) + ' 条' + ((r.failed || []).length ? '，失败 ' + r.failed.length + ' 条' : ''), 'ok');
+    go('guard');
+  }catch(e){ toast(e.message, 'err'); }
+};
+
+// ========== 工具函数 ==========
+function gv(id){ const e=document.getElementById(id); return e?e.value:''; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function sevBadge(s){ const m={critical:'b-crit',high:'b-danger',medium:'b-warn',low:'b-gray'};
+  return `<span class="badge ${m[s]||'b-gray'}">${esc(s||'-')}</span>`; }
+function triageBadge(t){ const m={pending:['b-warn','待研判'],true_positive:['b-danger','真实'],false_positive:['b-gray','误报'],observing:['b-info','观察中']};
+  const x=m[t]||['b-gray',t]; return `<span class="badge ${x[0]}">${x[1]}</span>`; }
+function vuLnBadge(s){return s;}
+function vulnBadge(s){ const m={open:['b-danger','待修复'],fixing:['b-warn','修复中'],fixed:['b-ok','已修复'],retest:['b-info','复测'],closed:['b-gray','关闭'],risk_accepted:['b-info','风险接受']};
+  const x=m[s]||['b-gray',s]; return `<span class="badge ${x[0]}">${x[1]}</span>`; }
+function priBadge(p){ const m={P1:'b-crit',P2:'b-danger',P3:'b-warn',P4:'b-gray'};
+  return `<span class="badge ${m[p]||'b-gray'}">${esc(p)}</span>`; }
+function lvlBadge(l){ const m={error:'b-danger',warn:'b-warn',info:'b-info',Information:'b-info',Error:'b-danger',Warning:'b-warn'};
+  return `<span class="badge ${m[l]||'b-gray'}">${esc(l||'-')}</span>`; }
+function chgBadge(s){ const m={pending:'b-warn',confirmed:'b-ok',rolled_back:'b-danger',auto_reverted:'b-danger',failed:'b-danger',recovered:'b-info',rolledback:'b-gray'};
+  return `<span class="badge ${m[s]||'b-gray'}">${esc(s)}</span>`; }
+
+function openModal(title, body, footer){
+  document.getElementById('mTitle').textContent=title;
+  document.getElementById('mBody').innerHTML=body;
+  document.getElementById('mFoot').innerHTML=footer||'';
+  document.getElementById('mask').classList.add('show');
+}
+function closeModal(){ document.getElementById('mask').classList.remove('show'); }
+window.openModal = openModal;
+window.closeModal = closeModal;
+
+// 启动：会话在 HttpOnly Cookie 前端不可读，交由 boot() 内经 /auth/me 探活（401→api() 自动回登录页）
+boot();
+document.getElementById('lp').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+
+// ========== 虚拟滚动 + 游标分页（上万条不卡） ==========
+// makeVS(opts): opts={rowH,maxH,cols:[...],head:[...],fetchPage(cursor)->Promise{rows,atEnd},onRender(row)->[htmlCell...]}
+// 返回滚动容器元素；_loadMore() 触发下一页；_updateQuery() 清缓存。
+window.makeVS = function(o){
+  var ROW=o.rowH||88, BUF=6;
+  // cols 里写裸数字（188 / 88 / 160）时，grid-template-columns 拿到的是一条
+  // 没有单位的非法声明，浏览器会整条丢弃 —— 表现就是表头和每行都竖排成一行一列。
+  // 这里统一补 px，页面传 188 或 "188px" 都对。
+  var COLS = (o.cols||[]).map(function(v){
+    return (typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v))) ? (v+'px') : v;
+  }).join(' ');
+  var rows=[], cursor=0, atEnd=false, loading=false;
+  var wrap=document.createElement('div');
+  wrap.className='vs-wrap';
+  wrap.style.cssText='overflow:auto;max-height:'+(o.maxH||'68vh')+';border:1px solid var(--line,#e5eaf1);border-radius:12px;background:#fff;';
+  var head=document.createElement('div');
+  head.style.cssText='display:grid;grid-template-columns:'+COLS+';gap:0 18px;font-weight:600;font-size:13px;padding:18px 22px;position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#f4f7fb,#eef2f8);color:#475569;border-bottom:1px solid var(--line,#e5eaf1);line-height:1.8;';
+  head.innerHTML=o.head.map(function(h){return '<span>'+esc(h)+'</span>';}).join('');
+  wrap.appendChild(head);
+  var body=document.createElement('div');
+  body.className='vs-body';
+  body.style.cssText='position:relative;';
+  wrap.appendChild(body);
+  var foot=document.createElement('div');
+  foot.style.cssText='padding:14px 22px;text-align:center;color:#8b95a7;font-size:13px;min-height:44px;border-top:1px solid #f0f3f8;line-height:1.8;';
+  wrap.appendChild(foot);
+  function render(){
+    var st=wrap.scrollTop, vh=wrap.clientHeight;
+    var i0=Math.max(0,Math.floor(st/ROW)-BUF);
+    var i1=Math.min(rows.length-1,Math.floor((st+vh)/ROW)+BUF);
+    var html='';
+    for(var i=i0;i<=i1;i++) html+='<div class="vs-row" style="position:absolute;top:'+(i*ROW)+'px;left:0;right:0;height:'+ROW+'px;display:grid;grid-template-columns:'+COLS+';gap:0 18px;align-items:start;padding:16px 22px;border-bottom:1px solid #eef2f7;box-sizing:border-box;font-size:13.5px;line-height:1.9;overflow:hidden;'+(i%2?'background:#fafbfe':'background:#fff')+'">'+o.onRender(rows[i]).join('')+'</div>';
+    body.innerHTML=html;
+    body.style.height=(rows.length*ROW)+'px';
+    foot.textContent=atEnd?(rows.length?(rows.length+' 条（已全部加载）'):'暂无数据'):(rows.length?rows.length+' 条已加载，滚动加载更多':'加载中…');
+  }
+  function loadMore(){
+    if(loading||atEnd) return;
+    loading=true;
+    foot.textContent='加载中…';
+    o.fetchPage(cursor).then(function(r){
+      loading=false;
+      var nr=r.rows||[];
+      rows=rows.concat(nr); cursor+=nr.length; atEnd=!!r.atEnd;
+      render();
+    }).catch(function(e){ loading=false; foot.textContent='加载失败: '+(e&&e.message?e.message:e); });
+  }
+  wrap.addEventListener('scroll',function(){
+    if(wrap.scrollTop+wrap.clientHeight>=wrap.scrollHeight-80){ loadMore(); }
+    else if(rows.length){ render(); }
+  });
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ if(rows.length) render(); }).observe(wrap); }catch(_e){} }
+  wrap._loadMore=loadMore;
+  wrap._updateQuery=function(){ rows=[]; cursor=0; atEnd=false; body.innerHTML=''; body.style.height='0'; foot.textContent=''; };
+  return wrap;
+};
+window.traceIp = function(ip){
+  var tip = document.getElementById('tip'); if(tip) tip.value = ip || '';
+  if(window.go) window.go('trace');
+  setTimeout(function(){ if(window.doTrace) window.doTrace(); }, 300);
+};
+// ========== 事件委托（替代全部内联事件属性；配合 CSP nonce，任何无 nonce 的内联脚本/事件属性都会被拦截） ==========
+document.addEventListener('click', function(e){
+  try{
+    var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+    if(!b) return;
+    var act = b.getAttribute('data-act');
+    var fn = window[act];
+    if(typeof fn !== 'function'){ if(window.toast) toast('未知操作: '+act,'err'); return; }
+    var args = [];
+    for(var i=1;;i++){ var v = b.getAttribute('data-a'+i); if(v===null) break; args.push(v); }
+    args.push(b);           // 末位传入触发元素，供 go(el)/snapFromBtn(b)/changeFromBtn(b) 使用
+    fn.apply(null, args);
+  }catch(err){ if(window.toast) toast('操作异常: '+(err&&err.message||err),'err'); }
+}, true);
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Enter') return;
+  var el = e.target && e.target.closest ? e.target.closest('[data-enter]') : null;
+  if(!el) return;
+  var fn = window[el.getAttribute('data-enter')];
+  if(typeof fn==='function') fn();
+});
+document.addEventListener('input', function(e){
+  var el = e.target && e.target.closest ? e.target.closest('[data-input]') : null;
+  if(!el) return;
+  var fn = window[el.getAttribute('data-input')];
+  if(typeof fn==='function') fn();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>蓝盾 BlueGuard · 功能真实性与可行性评估</title>
+<style>
+:root{--bg:#fff;--ink:#1f2937;--ink2:#6b7280;--line:#e5e7eb;--blue:#2563eb;--blue-weak:#eff6ff}
+*{box-sizing:border-box}
+body{margin:0;background:#f7f8fa;color:var(--ink);
+  font:400 14px/1.78 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto;padding:28px 24px 80px;
+  display:grid;grid-template-columns:250px minmax(0,1fr);gap:36px;align-items:start}
+.topbar{grid-column:1/3;display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.topbar .badge{background:var(--blue-weak);color:var(--blue);font-size:12px;padding:2px 8px;border-radius:3px;font-weight:500}
+.topbar .meta{color:var(--ink2);font-size:12px;margin-left:auto}
+.toc{position:sticky;top:20px;max-height:calc(100vh - 60px);overflow:auto;
+  background:#fff;border:1px solid var(--line);border-radius:6px;padding:14px 12px;font-size:12.5px}
+.toc .t{font-weight:600;color:var(--ink2);font-size:11px;letter-spacing:.5px;margin:0 0 8px 6px}
+.toc ul{list-style:none;margin:0;padding:0}
+.toc ul ul{padding-left:12px}
+.toc li{margin:0}
+.toc a{display:block;color:#374151;text-decoration:none;padding:3px 6px;border-radius:3px;line-height:1.5}
+.toc a:hover{background:var(--blue-weak);color:var(--blue)}
+.doc{background:#fff;border:1px solid var(--line);border-radius:6px;padding:44px 52px;min-width:0}
+h1{font-size:27px;line-height:1.35;margin:0 0 22px;font-weight:600;letter-spacing:-.2px}
+h2{font-size:20px;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line);font-weight:600}
+h3{font-size:16px;margin:28px 0 10px;font-weight:600}
+h4{font-size:14px;margin:20px 0 8px;font-weight:600;color:#374151}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:4px 0}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+strong{font-weight:600}
+hr{border:none;border-top:1px solid var(--line);margin:34px 0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13px;display:table}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top;word-break:break-word}
+th{background:#f8fafc;font-weight:600;color:#374151;font-size:12.5px;white-space:nowrap}
+td:first-child{min-width:64px}
+tr:nth-child(even) td{background:#fcfdfe}
+code{background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:12.5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#b91c1c}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:6px;overflow:auto;
+  font-size:12.5px;line-height:1.7;margin:14px 0}
+pre code{background:none;color:inherit;padding:0;font-size:12.5px}
+blockquote{margin:14px 0;padding:10px 16px;background:var(--blue-weak);border-left:3px solid var(--blue);
+  border-radius:0 4px 4px 0;color:#1e40af;font-size:13px}
+pre.mermaid{background:#fff;border:1px solid var(--line);text-align:center;padding:18px;color:var(--ink);overflow-x:auto}
+.mmd-warn{display:none;background:#fffbeb;border:1px solid #fde68a;color:#92400e;
+  padding:10px 14px;border-radius:4px;font-size:12.5px;margin:12px 0}
+@media (max-width:1000px){.wrap{grid-template-columns:1fr}.toc{display:none}}
+@media print{body{background:#fff}.toc{display:none}.wrap{display:block;padding:0}
+  .doc{border:none;padding:0}pre{white-space:pre-wrap}}
+</style></head>
+<body><div class="wrap">
+<div class="topbar"><span class="badge">评估报告</span><span class="meta">三层判定 · 14 模块对照 · 7 项技术假设实测</span></div>
+<nav class="toc"><div class="t">目录</div><div class="toc">
+<ul>
+<li><a href="#1">1 三层判定</a></li>
+<li><a href="#2-14">2 14 个模块的真实性逐项对照</a></li>
+<li><a href="#3">3 技术假设实测（本次真正验证的部分）</a><ul>
+<li><a href="#31">3.1 检索能力实测（两个真缺陷）</a></li>
+</ul>
+</li>
+<li><a href="#4">4 哪些是真能做、哪些有硬约束</a></li>
+<li><a href="#5">5 判断：值不值得做</a></li>
+<li><a href="#6">6 本次评估顺带修掉的设计缺陷</a></li>
+</ul>
+</div>
+</nav>
+<article class="doc"><h1 id="blueguard">蓝盾 BlueGuard · 功能真实性与可行性评估</h1>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>评估对象</td>
+<td><code>prototype/index.html</code>（174 KB）、<code>docs/蓝盾蓝队平台_设计文档.md</code>（2853 行）</td>
+</tr>
+<tr>
+<td>评估日期</td>
+<td>2026-11-04</td>
+</tr>
+<tr>
+<td>评估方法</td>
+<td>静态代码检索 + 本机只读实测（PowerShell / netsh / SQLite），不依赖设计文档的自述</td>
+</tr>
+<tr>
+<td>一句话结论</td>
+<td><strong>这是「图纸 + 沙盘模型」，不是「机器」。界面与信息架构是真的，技术路线基本成立，但真实业务功能为 0 行代码。</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1">1 三层判定</h2>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>判定</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1 界面层</strong></td>
+<td>✅ 真实</td>
+<td>14 个页面可渲染、可点击，DOM 约 2600 节点，浅色排版统一，交互流程（向导、二次确认、diff 预览、抽屉）都能走通</td>
+</tr>
+<tr>
+<td><strong>L2 交互层</strong></td>
+<td>⚠️ 半真（内存态）</td>
+<td>点击有效果，但只改内存里的 JS 对象。全文 <code>fetch</code> / <code>XMLHttpRequest</code> / <code>localStorage</code> / <code>WebSocket</code> / <code>EventSource</code> 出现次数<strong>全部为 0</strong>——没有任何数据通路，刷新即回到初始状态</td>
+</tr>
+<tr>
+<td><strong>L3 业务层</strong></td>
+<td>❌ 未实现</td>
+<td>仓库内<strong>没有</strong> <code>backend/</code> 与 <code>frontend/</code> 目录。改 IP、封禁、采集日志、算审计哈希链——一行都没写</td>
+</tr>
+</tbody>
+</table>
+<p>所谓「点一下封禁 IP 就成功了」：代码里是 <code>toast('已执行')</code> 加一句内存赋值，<strong>系统防火墙没有任何变化</strong>。</p>
+<hr />
+<h2 id="2-14">2 14 个模块的真实性逐项对照</h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>原型里看到的</th>
+<th>实际发生的事</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总览</td>
+<td>10 张指标卡、趋势图、环形图</td>
+<td>常量数组渲染</td>
+<td>展示真实，数据虚构</td>
+</tr>
+<tr>
+<td>网络配置</td>
+<td>网卡卡片、改 IP、120 秒看门狗倒计时</td>
+<td>改的是 JS 对象；倒计时是真的在跑</td>
+<td>交互真实，<strong>不改系统配置</strong></td>
+</tr>
+<tr>
+<td>告警研判</td>
+<td>队列、优先级分、攻击链、认领</td>
+<td>认领改 <code>owner</code> 字段</td>
+<td>交互真实，无规则引擎</td>
+</tr>
+<tr>
+<td>日志检索</td>
+<td>检索条、命中数、高亮</td>
+<td>固定 10 条样例，无查询行为</td>
+<td>展示真实，<strong>未接存储</strong></td>
+</tr>
+<tr>
+<td>溯源情报</td>
+<td>风险分环、情报三栏、四层时间线</td>
+<td>单个硬编码 IP 的结果</td>
+<td>展示真实，无情报查询</td>
+</tr>
+<tr>
+<td>资产台账</td>
+<td>表格、星级、导入预检</td>
+<td>新增不落库</td>
+<td>交互真实，无持久化</td>
+</tr>
+<tr>
+<td>漏洞台账</td>
+<td>CVSS、SLA、状态流转</td>
+<td>点开即 <code>toast</code></td>
+<td>展示真实</td>
+</tr>
+<tr>
+<td>基线核查</td>
+<td>8 项 × 4 主机矩阵、合规率</td>
+<td><strong>统计已改为从矩阵计算</strong>（73%），不是写死</td>
+<td>展示真实，无核查执行</td>
+</tr>
+<tr>
+<td>应急响应</td>
+<td>事件状态机、处置时间轴、撤销</td>
+<td>时间轴数据静态</td>
+<td>展示真实</td>
+</tr>
+<tr>
+<td>值班任务</td>
+<td>周排班、交接班、验收</td>
+<td>弹窗真实，无落库</td>
+<td>展示真实</td>
+</tr>
+<tr>
+<td>报表中心</td>
+<td>模板、定时、归档</td>
+<td>点「生成」只弹提示</td>
+<td>展示真实</td>
+</tr>
+<tr>
+<td>审计</td>
+<td>哈希链状态、前/后值 diff</td>
+<td>哈希值是硬编码字符串，未真正串链</td>
+<td><strong>展示真实，哈希链未验证</strong></td>
+</tr>
+<tr>
+<td>通知中心</td>
+<td>4 渠道、规则、发送日志</td>
+<td>测试发送只是弹提示</td>
+<td>展示真实</td>
+</tr>
+<tr>
+<td>设置</td>
+<td>账号、情报源、系统参数、交付形态、启动向导</td>
+<td>表单不改任何配置</td>
+<td>交互真实</td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：14 个模块<strong>都能看，没有一个是真在干活</strong>。它们证明的是「界面和流程设计成立」，不是「软件能用」。</p>
+<hr />
+<h2 id="3">3 技术假设实测（本次真正验证的部分）</h2>
+<p>设计文档里有若干「应该可行」的判断。下面是我在本机实跑的结果——<strong>行就是行，不行就是不行</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>假设</th>
+<th>实测命令/方法</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>能枚举网卡</td>
+<td><code>Get-NetAdapter</code></td>
+<td>✅ 成功，返回 3 块网卡（含中文名「蓝牙网络连接」），非管理员也可用</td>
+</tr>
+<tr>
+<td>2</td>
+<td>能取 IP/掩码/网关</td>
+<td><code>Get-NetIPAddress -AddressFamily IPv4</code></td>
+<td>✅ 成功，返回 <code>VMnet8 → 192.168.145.1/24</code> 等</td>
+</tr>
+<tr>
+<td>3</td>
+<td>能读 Windows 安全日志</td>
+<td><code>Get-WinEvent -LogName Security -MaxEvents 1</code></td>
+<td>❌ <strong>失败：Attempted to perform an unauthorized operation</strong>（非管理员）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>当前是否具备改网卡的权限</td>
+<td><code>IsInRole(Administrator)</code></td>
+<td>❌ <code>ADMIN=False</code>，改 IP 必然返回 <code>ELEVATION_REQUIRED</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>netsh</code> 输出稳定可解析</td>
+<td><code>netsh interface ip show config</code></td>
+<td>⚠️ <strong>本机输出为英文</strong>（"DHCP enabled: Yes"），字段名与中文系统完全不同</td>
+</tr>
+<tr>
+<td>6</td>
+<td>FTS5 <code>trigram</code> 能搜中文</td>
+<td>SQLite 3.53.1 建虚拟表实测</td>
+<td>⚠️ <strong>4 字词命中，2 字词漏报</strong>（详见下）</td>
+</tr>
+<tr>
+<td>7</td>
+<td>能打包成便携 exe</td>
+<td><code>import PyInstaller</code></td>
+<td>⚠️ <strong>未安装，打包链路未验证</strong>（不影响设计成立，只影响交付形态验证）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="31">3.1 检索能力实测（两个真缺陷）</h3>
+<pre><code>SQLITE 3.53.1
+  MATCH '登录失败'      -&gt; 1     ✅ 四字词正常
+  MATCH '登录'          -&gt; 0     ❌ 两字词完全搜不到
+  MATCH '失败'          -&gt; 0     ❌ 同上
+  MATCH '203.0.113'     -&gt; ERR   ❌ fts5: syntax error near &quot;.&quot;
+  MATCH '&quot;203.0.113&quot;'   -&gt; 1     ✅ 加引号才成立
+  LIKE  '%登录%'        -&gt; 1     ✅ 兜底有效
+</code></pre>
+<p><strong>影响</strong>：</p>
+<ul>
+<li>中文用户极高频输入两字词（登录、失败、告警、封禁），trigram 以 3 字符建索引，两字词<strong>一条都搜不到</strong>。这是<strong>假阴性</strong>——比慢严重得多，会让人误判「今天没有攻击」。</li>
+<li>IP 直接进 <code>MATCH</code> 会<strong>抛语法错误</strong>，不是搜不到，是接口 500。而 IP 检索恰恰是本平台最高频的查询。</li>
+</ul>
+<p><strong>已修正</strong>：设计文档 5.4.3 补了两条硬约束（含点号 token 加引号、&lt;3 字符走 <code>LIKE</code> 兜底与查询改写规则），13.2 补了对应技术难点行。这两条不实现，日志检索模块等于不可用。</p>
+<hr />
+<h2 id="4">4 哪些是真能做、哪些有硬约束</h2>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>可行性</th>
+<th>约束条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>资产台账、值班任务、报表、通知</td>
+<td>🟢 高</td>
+<td>纯 CRUD，无外部依赖，风险最低</td>
+</tr>
+<tr>
+<td>审计哈希链 + 只增触发器</td>
+<td>🟢 高</td>
+<td>SQLite 触发器即可实现，可单测验证</td>
+</tr>
+<tr>
+<td>日志检索</td>
+<td>🟡 中</td>
+<td>需先修 3.1 的两个缺陷；FTS5 索引体积约为原文 3–4 倍</td>
+</tr>
+<tr>
+<td>网卡枚举</td>
+<td>🟢 已验证</td>
+<td>非管理员即可读</td>
+</tr>
+<tr>
+<td><strong>改 IP / 回滚</strong></td>
+<td>🟡 中</td>
+<td><strong>必须管理员</strong>；看门狗跨进程还原是这套设计里最难的一段，尚未验证</td>
+</tr>
+<tr>
+<td>防火墙封禁 / 主机隔离</td>
+<td>🟡 中</td>
+<td>必须管理员；隔离自己会断网，靠 <code>allow_mgmt</code> 兜</td>
+</tr>
+<tr>
+<td>Windows 事件日志采集</td>
+<td>🔴 有条件</td>
+<td><strong>必须管理员</strong>，实测非管理员直接 unauthorized</td>
+</tr>
+<tr>
+<td>IP 溯源情报</td>
+<td>🟡 中</td>
+<td>要么有外网，要么自备 GeoLite2 离线库；两样都没有就只剩本地日志聚合</td>
+</tr>
+<tr>
+<td>内置漏洞扫描</td>
+<td>⛔ 不做</td>
+<td>平台定位是防守方，漏洞只做「导入」</td>
+</tr>
+<tr>
+<td>APT 归因</td>
+<td>⛔ 不做</td>
+<td>文档已明确列为非目标</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5">5 判断：值不值得做</h2>
+<p><strong>值得，但要认清现在处于哪一步。</strong></p>
+<ul>
+<li>设计与原型的价值：把「蓝队每天要干什么」拆成了 14 个模块、42 张表、96 个接口，且<strong>关键风险点都标了处置方案</strong>（快照回滚、看门狗、审计链、数据范围、离线可用）。这部分是能直接指导编码的，不是空谈。</li>
+<li>原型的价值：让评审人在 5 分钟内看懂产品长什么样、流程怎么走。它<strong>不能</strong>用来向人证明「已经做出了系统」。</li>
+<li>风险：如果有人看到这个界面就以为功能已就绪，接上真实数据时会发现检索漏报、改 IP 需要提权、日志读不到——这三点今天已经实测出两个。</li>
+</ul>
+<p><strong>最小心可信路径</strong>（按这个顺序做，两周内能证明「不是纸上系统」）：</p>
+<ol>
+<li><strong>第 1 天</strong>：网卡枚举 + 连通性检测（已实测可行，直接做）。</li>
+<li><strong>第 2–4 天</strong>：SQLite 建库 + 日志入库 + 检索（<strong>先修 3.1 的两个缺陷</strong>，用真实日志跑通 1 万条）。</li>
+<li><strong>第 5–8 天</strong>：改 IP + 快照 + 三级验证 + 回滚（<strong>必须在管理员权限下跑</strong>，这是唯一未验证的高风险段）。</li>
+<li><strong>第 9–12 天</strong>：审计哈希链 + 资产台账 + 告警聚合。</li>
+<li><strong>第 13–14 天</strong>：打包成便携版，在<strong>另一台干净机器</strong>上按 11.8 的 7 条走一遍。</li>
+</ol>
+<p>一条经验判断：<strong>第 3 步（改 IP 并可靠回滚）是整个项目的生死线</strong>。它一旦不可靠，产品就从「运维助手」变成「断网工具」，其余 13 个模块做得再好也没人敢用。</p>
+<hr />
+<h2 id="6">6 本次评估顺带修掉的设计缺陷</h2>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>原设计</th>
+<th>修正</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5.4.3 检索</td>
+<td>只说「中文靠 trigram 子串匹配」</td>
+<td>补：含点号 token 必须加引号；&lt;3 字符走 <code>LIKE</code> 兜底；给出确定性查询改写规则与超时策略</td>
+</tr>
+<tr>
+<td>13.2 技术难点</td>
+<td>无</td>
+<td>新增 4 行：中文短词漏报、含点号关键词语法错、<code>netsh</code> 输出随语言变化、非管理员读不到安全日志</td>
+</tr>
+</tbody>
+</table>
+<p>其余设计章节（模块、数据模型、接口、流程、部署）经本轮核对未发现与实测冲突之处；<strong>但「未发现冲突」不等于「已验证可用」</strong>，业务逻辑仍需按第 5 节的顺序逐段实现并验证。</p></article>
+</div>
+<div class="mmd-warn" id="mmdWarn">当前环境未能加载图表渲染脚本（离线或网络受限）。下图中标注为「示例图」的代码块为 Mermaid 源码，可用 Typora / VS Code / GitHub 打开同一 Markdown 文件查看渲染效果；正文与表格不受影响。</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+(function(){
+  if (!window.mermaid) { document.getElementById('mmdWarn').style.display='block'; return; }
+  try {
+    mermaid.initialize({ startOnLoad:false, theme:'base', securityLevel:'strict',
+      themeVariables:{ primaryColor:'#eff6ff', primaryBorderColor:'#bfdbfe', primaryTextColor:'#1f2937',
+        lineColor:'#9ca3af', fontSize:'13px' } });
+    mermaid.run({ querySelector: 'pre.mermaid' }).catch(function(){});
+  } catch(e) { document.getElementById('mmdWarn').style.display='block'; }
+})();
+</script>
+</body></html>
