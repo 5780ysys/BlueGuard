@@ -1213,7 +1213,16 @@ PAGES.settings = async (c)=>{
     <div class="field" style="margin-bottom:20px"><label>新口令（≥8位）</label><input id="pw_new" type="password" placeholder="输入新口令"></div>
     <button class="btn" data-act="changePwd">提交修改</button>
     <div class="muted" style="margin-top:10px;line-height:2.0">修改成功后当前会话可能受影响，按需重新登录。</div>
-  </div></div>`;
+  </div></div>
+  <div class="panel"><div class="panel-h"><h3>免责声明</h3><span class="badge b-warn">使用前请阅读</span></div>
+    <div class="panel-b" style="padding:22px 24px;line-height:1.95">
+      <p style="margin:0 0 12px"><strong>1. 授权范围。</strong>本软件仅限在<strong>您本人拥有完全控制权的设备</strong>上运行，用于本地安全自查、授权范围内的演练与教学。您确认已获得该设备的合法使用授权，并承诺不将其用于任何未经授权的系统访问、数据窃取或其他非法活动。因未获授权使用而产生的法律责任，由使用者自行承担。</p>
+      <p style="margin:0 0 12px"><strong>2. 处置风险。</strong>「阻断」档会真实写入 Windows 防火墙规则并结束进程。阻断内网地址按设计一律拒绝，系统关键进程与服务端口受保护；但任何自动化处置都可能在极少数场景下影响正常业务。请先在「观察」档跑一段时间确认无误报，再切换到阻断档，并确保有回滚手段（响应与对账页可逐条回滚）。</p>
+      <p style="margin:0 0 12px"><strong>3. 检测边界。</strong>本软件是用户态实现，<strong>不是内核驱动级 EDR</strong>：不能拦截内存注入，不能保证零漏报（事件源约 1 秒粒度），规则为启发式，存在误报可能。检测结论仅供参考，不构成安全认证或合规证明。</p>
+      <p style="margin:0 0 12px"><strong>4. 数据与隐私。</strong>所有数据（事件、日志、资产、审计）保存在本机 <code class="mono">data\</code> 目录下的 SQLite 库中，程序不上传任何数据、不连接外网服务。备份、迁移与删除由您自行负责。</p>
+      <p style="margin:0 0 12px"><strong>5. 免责。</strong>本软件按「现状」提供，不附带任何明示或暗示的担保。因使用或无法使用本软件导致的任何直接或间接损失（含数据丢失、业务中断、系统不可用），作者不承担责任。</p>
+      <p style="margin:0"><strong>6. 许可。</strong>MIT License。详见仓库根目录 <code class="mono">LICENSE</code>。</p>
+    </div></div>`;
 };
 window.changePwd = async ()=>{ try{ await api('/auth/change-password',{method:'POST',
   body:{old_password:gv('pw_old'),new_password:gv('pw_new')}}); toast('口令已修改','ok');
